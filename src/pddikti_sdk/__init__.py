@@ -1,8 +1,7 @@
-"""PDDikti SDK - Modern & Type-Safe SDK untuk Data Dikti, SINTA, Akreditasi BAN-PT, Cache SQLite, dan Neo Feeder."""
+"""PDDikti SDK - Modern & Type-Safe SDK untuk Data Dikti, SINTA, Akreditasi BAN-PT, dan Cache SQLite."""
 
 from pddikti_sdk.client import AsyncPDDiktiClient, PDDiktiClient
 from pddikti_sdk.cache import SQLiteCache
-from pddikti_sdk.feeder import AsyncNeoFeederClient, FeederException, NeoFeederClient
 from pddikti_sdk.exceptions import (
     APIConnectionError,
     PDDiktiError,
@@ -56,9 +55,6 @@ __version__ = "0.2.0"
 __all__ = [
     "PDDiktiClient",
     "AsyncPDDiktiClient",
-    "NeoFeederClient",
-    "AsyncNeoFeederClient",
-    "FeederException",
     "SQLiteCache",
     "PDDiktiService",
     "AsyncPDDiktiService",

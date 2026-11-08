@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-v2-e92063.svg)](https://docs.pydantic.dev/)
-[![Tests](https://img.shields.io/badge/tests-16%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-27%20passed-brightgreen.svg)]()
 
 **PDDikti SDK** adalah pustaka Python modern, terawat, dan dilengkapi sistem *type safety* lengkap (Pydantic V2) untuk mengakses dan menganalisis data ekosistem pendidikan tinggi Indonesia: **PDDikti Kemendikbudristek**, **Publikasi & Metrik SINTA**, **Akreditasi BAN-PT & Lembaga Akreditasi Mandiri (LAM)**, serta **Mesin Analisis Rasio Kepatuhan Dosen-Mahasiswa**.
 
@@ -26,12 +26,17 @@ Dirancang khusus untuk membantu **peneliti sosial**, **jurnalis data**, **analis
 4. **📊 Mesin Evaluasi Rasio Dosen-Mahasiswa (`RatioAnalyzer`):**
    - Standar BAN-PT untuk rumpun **Eksakta / Teknik / Kesehatan** (Ideal $\le$ 1:20, toleransi s.d. 1:35) dan **Sosial / Humaniora** (Ideal $\le$ 1:30, toleransi s.d. 1:45).
    - Deteksi otomatis anomali ekstrim (> 1:100 atau prodi aktif tanpa dosen tetap terdaftar) serta rekomendasi kebutuhan formasi dosen.
-5. **⚡ Arsitektur Dual-Mode & Integrasi Neo Feeder Kampus:**
-   - **Mode Publik:** `PDDiktiClient` & `AsyncPDDiktiClient` untuk data publik Dikti, SINTA, dan akreditasi BAN-PT dengan akselerasi cache SQLite.
-   - **Mode Kampus:** `NeoFeederClient` & `AsyncNeoFeederClient` untuk komunikasi langsung ke server Feeder internal kampus (`ws/live2.php` atau `ws/sandbox2.php`), dilengkapi *handshake token* otomatis, *auto-retry* saat sesi habis, dan streaming data mahasiswa/dosen bertahap (`iter_records`).
+5. **⚡ Akselerasi Cache SQLite & Ketahanan Jaringan:**
+   - Penyimpanan cache SQLite lokal cerdas (`~/.pddikti/cache.db`) dengan TTL otomatis.
+   - Pangkas latensi query pencarian berulang hingga < 5 milidetik dan melindungi dari batasan *rate limit* Dikti.
+   - Pembersihan otomatis entri kedaluwarsa dan statistik performa *hit rate*.
 6. **📊 Ekspor Laporan & Tooling:**
    - Ekspor laporan kepatuhan rasio ke Excel (.xlsx) dengan pewarnaan mutu BAN-PT otomatis.
    - Konversi mudah ke Pandas DataFrame.
+   - CLI Tool terintegrasi (`pddikti` / `pddikti-cli`).
+
+> [!NOTE]
+> Untuk kebutuhan integrasi web service internal kampus (SIAKAD) via **Neo Feeder PDDIKTI** (`ws/live2.php`), silakan gunakan pustaka terpisah: [**pddikti_sdk_neofeeder**](https://github.com/banghamid/pddikti_sdk_neofeeder).
 
 ---
 
@@ -85,10 +90,6 @@ pddikti akreditasi --peringkat "A" --json
 pddikti cache --stats
 pddikti cache --clear
 pddikti search "ITB" --no-cache
-
-# 9. Integrasi Neo Feeder Kampus (Web Service SIAKAD)
-pddikti feeder test --url http://localhost:8100/ws/live2.php -u user_feeder -p pass_feeder
-pddikti feeder query GetProfilPT --url http://localhost:8100/ws/live2.php -u user_feeder -p pass_feeder
 ```
 
 ---
@@ -198,30 +199,17 @@ print(f"Peringkat : {akreditasi.peringkat.value} ({akreditasi.lembaga.value})")
 print(f"Status    : {'Aktif' if not akreditasi.is_expired else 'Kedaluwarsa'}")
 ```
 
-### 5. Integrasi Sistem Kampus (Neo Feeder Web Service)
+### 5. Integrasi Neo Feeder PDDIKTI Kampus
 
-```python
-from pddikti_sdk import NeoFeederClient
+Untuk kebutuhan integrasi sistem kampus (SIAKAD) dengan web service resmi Neo Feeder PDDIKTI (`ws/live2.php` pada port default `8100`), gunakan paket khusus:
 
-# Inisialisasi koneksi ke server Feeder kampus
-feeder = NeoFeederClient(
-    base_url="http://localhost:8100/ws/live2.php",
-    username="operator_kampus",
-    password="password_rahasia",
-)
+👉 **[banghamid/pddikti_sdk_neofeeder](https://github.com/banghamid/pddikti_sdk_neofeeder)**
 
-# 1. Uji koneksi dan periksa token
-status = feeder.test_connection()
-print(f"Status Feeder: {status['status']}")
-
-# 2. Ambil profil PT kampus
-profil = feeder.get_profil_pt()
-print(f"Kampus: {profil.get('nama_perguruan_tinggi')}")
-
-# 3. Stream data mahasiswa bertahap (aman memori untuk ribuan data)
-for mhs in feeder.iter_records("GetBiodataMahasiswa", chunk_size=100, max_records=500):
-    print(f"[{mhs['nim']}] {mhs['nama_mahasiswa']}")
+```bash
+pip install pddikti-sdk-neofeeder
 ```
+
+Dilengkapi fitur *auto-handshake token*, *retry on session expiration*, *chunked streaming generator* (`iter_records`), dan CLI `neofeeder`.
 
 ---
 
