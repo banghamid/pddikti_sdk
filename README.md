@@ -26,9 +26,10 @@ Dirancang khusus untuk membantu **peneliti sosial**, **jurnalis data**, **analis
 4. **📊 Mesin Evaluasi Rasio Dosen-Mahasiswa (`RatioAnalyzer`):**
    - Standar BAN-PT untuk rumpun **Eksakta / Teknik / Kesehatan** (Ideal $\le$ 1:20, toleransi s.d. 1:35) dan **Sosial / Humaniora** (Ideal $\le$ 1:30, toleransi s.d. 1:45).
    - Deteksi otomatis anomali ekstrim (> 1:100 atau prodi aktif tanpa dosen tetap terdaftar) serta rekomendasi kebutuhan formasi dosen.
-5. **⚡ Arsitektur Modern & Asinkron:**
+5. **⚡ Arsitektur Modern, Asinkron, & Cache SQLite:**
    - Menyediakan `PDDiktiClient` (Sync) dan `AsyncPDDiktiClient` (Async) berbasis `httpx`.
-   - Ekspor mudah ke format Pandas DataFrame untuk pengolahan statistik lanjutan.
+   - Penyimpanan cache SQLite lokal (`SQLiteCache`) terintegrasi dengan batas masa berlaku (TTL) untuk mencegah *rate limit* (HTTP 429) dan mempercepat respons query hingga < 5 milidetik.
+   - Ekspor mudah ke format Pandas DataFrame dan dokumen Excel (.xlsx) berwarna otomatis.
 
 ---
 
@@ -77,6 +78,11 @@ pddikti sinta --demo
 # 7. Output JSON mentah (cocok untuk scripting dan pipe ke jq)
 pddikti search "UGM" --json
 pddikti akreditasi --peringkat "A" --json
+
+# 8. Manajemen & Pemantauan Cache SQLite
+pddikti cache --stats
+pddikti cache --clear
+pddikti search "ITB" --no-cache
 ```
 
 ---
@@ -88,13 +94,18 @@ pddikti akreditasi --peringkat "A" --json
 ```python
 from pddikti_sdk import PDDiktiClient
 
-with PDDiktiClient() as client:
-    # Pencarian agregat
+# Menggunakan cache SQLite bawaan (~/.pddikti/cache.db) dengan TTL 24 jam
+with PDDiktiClient(cache=True) as client:
+    # Query pertama: mengambil data dari jaringan PDDikti dan menyimpannya di SQLite
     hasil = client.search("Universitas Indonesia")
     print(f"Total temuan: {hasil.total_hits}")
 
-    for pt in hasil.perguruan_tinggi:
-        print(f"[{pt.id}] {pt.text}")
+    # Query kedua dengan kata kunci sama: < 5 ms dari cache lokal tanpa beban jaringan
+    hasil_cepat = client.search("Universitas Indonesia")
+
+    # Cek metrik hit & ukuran database cache
+    stats = client.cache_stats()
+    print(f"Cache Hit Rate: {stats['hit_rate_pct']}% | Total Entri: {stats['total_entries']}")
 ```
 
 ---

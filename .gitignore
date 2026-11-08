@@ -66,3 +66,11 @@ Thumbs.db
 *.xlsx
 *.xls
 
+# Local SQLite databases & cache
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+

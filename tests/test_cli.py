@@ -48,3 +48,21 @@ def test_cli_help(capsys):
     assert "PDDikti CLI" in captured
     assert "search" in captured
     assert "ratio" in captured
+    assert "cache" in captured
+
+
+def test_cli_cache_commands(capsys):
+    # Test stats
+    ret_stats = main(["cache", "--json"])
+    assert ret_stats == 0
+    captured = capsys.readouterr().out
+    stats = json.loads(captured)
+    assert "database_path" in stats
+    assert "total_entries" in stats
+
+    # Test clear
+    ret_clear = main(["cache", "--clear", "--json"])
+    assert ret_clear == 0
+    captured_clear = capsys.readouterr().out
+    res = json.loads(captured_clear)
+    assert "deleted" in res

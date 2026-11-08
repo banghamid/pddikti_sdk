@@ -58,11 +58,13 @@ def handle_search(args: argparse.Namespace) -> int:
         print("Error: Harap berikan kata kunci pencarian. Contoh: pddikti search \"Universitas Indonesia\"")
         return 1
 
+    use_cache = not getattr(args, "no_cache", False)
     if not args.json:
-        print(f"Mencari '{keyword}' di PDDikti Kemendikbudristek...")
+        cache_note = " (Cache dinonaktifkan)" if not use_cache else ""
+        print(f"Mencari '{keyword}' di PDDikti Kemendikbudristek{cache_note}...")
     try:
         with PDDiktiClient(timeout=args.timeout) as client:
-            result = client.search(keyword)
+            result = client.search(keyword, use_cache=use_cache)
     except Exception as e:
         print(f"Gagal melakukan pencarian: {e}")
         return 1
@@ -99,12 +101,14 @@ def handle_search(args: argparse.Namespace) -> int:
 def handle_pt(args: argparse.Namespace) -> int:
     """Menangani perintah: pddikti pt <id_pt>"""
     id_pt = args.id_pt.strip()
+    use_cache = not getattr(args, "no_cache", False)
     if not args.json:
-        print(f"Mengambil profil Perguruan Tinggi (ID: {id_pt})...")
+        cache_note = " (Cache dinonaktifkan)" if not use_cache else ""
+        print(f"Mengambil profil Perguruan Tinggi (ID: {id_pt}){cache_note}...")
 
     try:
         with PDDiktiClient(timeout=args.timeout) as client:
-            pt = client.get_perguruan_tinggi(id_pt, include_prodi=not args.no_prodi)
+            pt = client.get_perguruan_tinggi(id_pt, include_prodi=not args.no_prodi, use_cache=use_cache)
     except Exception as e:
         print(f"Gagal mengambil detail PT: {e}")
         return 1
@@ -149,12 +153,14 @@ def handle_pt(args: argparse.Namespace) -> int:
 def handle_ratio(args: argparse.Namespace) -> int:
     """Menangani perintah: pddikti ratio <id_pt>"""
     id_pt = args.id_pt.strip()
+    use_cache = not getattr(args, "no_cache", False)
     if not args.json:
-        print(f"Melakukan evaluasi rasio kepatuhan BAN-PT untuk PT: {id_pt}...")
+        cache_note = " (Cache dinonaktifkan)" if not use_cache else ""
+        print(f"Melakukan evaluasi rasio kepatuhan BAN-PT untuk PT: {id_pt}{cache_note}...")
 
     try:
         with PDDiktiClient(timeout=args.timeout) as client:
-            pt = client.get_perguruan_tinggi(id_pt, include_prodi=True)
+            pt = client.get_perguruan_tinggi(id_pt, include_prodi=True, use_cache=use_cache)
             laporan = client.analyze_ratio(pt)
     except Exception as e:
         print(f"Gagal menganalisis rasio PT: {e}")
@@ -274,6 +280,35 @@ def handle_demo_sinta(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_cache(args: argparse.Namespace) -> int:
+    """Menangani perintah: pddikti cache [--stats | --clear | --expired-only]"""
+    with PDDiktiClient() as client:
+        if args.clear:
+            deleted = client.clear_cache(expired_only=args.expired_only)
+            if args.json:
+                print(json.dumps({"deleted": deleted}))
+            else:
+                scope = "yang telah kedaluwarsa" if args.expired_only else "secara keseluruhan"
+                print(f"[SUKSES] Berhasil membersihkan {deleted} entri cache SQLite ({scope}).")
+            return 0
+
+        stats = client.cache_stats()
+        if args.json:
+            print(json.dumps(stats, indent=2))
+            return 0
+
+        print(f"\n=== STATISTIK CACHE SQLITE PDDikti ===")
+        print(f"Lokasi Database  : {stats.get('database_path')}")
+        print(f"Total Entri      : {stats.get('total_entries', 0):,}")
+        print(f"Entri Aktif      : {stats.get('active_entries', 0):,}")
+        print(f"Entri Kedaluwarsa: {stats.get('expired_entries', 0):,}")
+        print(f"Ukuran Berkas    : {stats.get('file_size_kb', 0.0)} KB")
+        print(f"Hit Count        : {stats.get('hits', 0):,} kali")
+        print(f"Miss Count       : {stats.get('misses', 0):,} kali")
+        print(f"Hit Rate         : {stats.get('hit_rate_pct', 0.0)}%\n")
+    return 0
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Membangun argument parser CLI pddikti."""
     parser = argparse.ArgumentParser(
@@ -289,6 +324,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser_search.add_argument("keyword", nargs="+", help="Kata kunci pencarian")
     parser_search.add_argument("-l", "--limit", type=int, default=10, help="Jumlah maksimal item ditampilkan (default: 10)")
     parser_search.add_argument("-c", "--category", choices=["all", "pt", "prodi", "dosen", "mahasiswa"], default="all", help="Kategori filter")
+    parser_search.add_argument("--no-cache", action="store_true", help="Lewati pembacaan cache lokal dan paksa permintaan jaringan baru")
     parser_search.add_argument("--timeout", type=float, default=30.0, help="Batas waktu koneksi HTTP (detik)")
     parser_search.add_argument("--json", action="store_true", help="Keluarkan output dalam format JSON mentah")
 
@@ -296,6 +332,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser_pt = subparsers.add_parser("pt", help="Inspeksi profil lengkap Perguruan Tinggi")
     parser_pt.add_argument("id_pt", help="Hash ID atau kode unik Perguruan Tinggi di PDDikti")
     parser_pt.add_argument("--no-prodi", action="store_true", help="Jangan tampilkan daftar program studi")
+    parser_pt.add_argument("--no-cache", action="store_true", help="Lewati pembacaan cache lokal")
     parser_pt.add_argument("--timeout", type=float, default=30.0, help="Batas waktu koneksi HTTP (detik)")
     parser_pt.add_argument("--json", action="store_true", help="Keluarkan output dalam format JSON")
 
@@ -304,6 +341,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser_ratio.add_argument("id_pt", help="Hash ID atau kode unik Perguruan Tinggi")
     parser_ratio.add_argument("--only-anomalies", action="store_true", help="Hanya tampilkan prodi dengan anomali ekstrim")
     parser_ratio.add_argument("-e", "--export", help="Nama atau path file output Excel (.xlsx) untuk laporan berformat rapi")
+    parser_ratio.add_argument("--no-cache", action="store_true", help="Lewati pembacaan cache lokal")
     parser_ratio.add_argument("--timeout", type=float, default=30.0, help="Batas waktu koneksi HTTP (detik)")
     parser_ratio.add_argument("--json", action="store_true", help="Keluarkan output dalam format JSON")
 
@@ -319,6 +357,13 @@ def create_parser() -> argparse.ArgumentParser:
     parser_sinta = subparsers.add_parser("sinta", help="Inspeksi metrik publikasi SINTA & Scopus")
     parser_sinta.add_argument("--demo", action="store_true", default=True, help="Tampilkan simulasi agregasi riset SINTA")
     parser_sinta.add_argument("--json", action="store_true", help="Keluarkan output dalam format JSON")
+
+    # Command: cache
+    parser_cache = subparsers.add_parser("cache", help="Kelola dan pantau cache SQLite lokal")
+    parser_cache.add_argument("--stats", action="store_true", default=True, help="Tampilkan statistik penggunaan cache (default)")
+    parser_cache.add_argument("--clear", action="store_true", help="Hapus seluruh rekaman cache SQLite")
+    parser_cache.add_argument("--expired-only", action="store_true", help="Hanya hapus entri yang telah kedaluwarsa")
+    parser_cache.add_argument("--json", action="store_true", help="Keluarkan statistik dalam format JSON")
 
     return parser
 
@@ -342,6 +387,8 @@ def main(args: Optional[List[str]] = None) -> int:
         return handle_akreditasi(parsed_args)
     elif parsed_args.command == "sinta":
         return handle_demo_sinta(parsed_args)
+    elif parsed_args.command == "cache":
+        return handle_cache(parsed_args)
 
     return 0
 
