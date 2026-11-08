@@ -87,8 +87,8 @@ pddikti cache --clear
 pddikti search "ITB" --no-cache
 
 # 9. Integrasi Neo Feeder Kampus (Web Service SIAKAD)
-pddikti feeder test --url http://localhost:8082/ws/live2.php -u user_feeder -p pass_feeder
-pddikti feeder query GetProfilPT --url http://localhost:8082/ws/live2.php -u user_feeder -p pass_feeder
+pddikti feeder test --url http://localhost:8100/ws/live2.php -u user_feeder -p pass_feeder
+pddikti feeder query GetProfilPT --url http://localhost:8100/ws/live2.php -u user_feeder -p pass_feeder
 ```
 
 ---
@@ -205,7 +205,7 @@ from pddikti_sdk import NeoFeederClient
 
 # Inisialisasi koneksi ke server Feeder kampus
 feeder = NeoFeederClient(
-    base_url="http://localhost:8082/ws/live2.php",
+    base_url="http://localhost:8100/ws/live2.php",
     username="operator_kampus",
     password="password_rahasia",
 )

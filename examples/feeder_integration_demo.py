@@ -15,7 +15,7 @@ def main():
     # Inisialisasi client Neo Feeder kampus
     # Catatan: ganti URL, username, dan password sesuai server Feeder kampus Anda
     feeder = NeoFeederClient(
-        base_url="http://localhost:8082/ws/live2.php",
+        base_url="http://localhost:8100/ws/live2.php",
         username="user_siakad",
         password="password_rahasia",
         timeout=60.0,

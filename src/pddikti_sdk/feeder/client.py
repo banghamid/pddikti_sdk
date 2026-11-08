@@ -28,15 +28,17 @@ class NeoFeederClient:
     """Klien sinkron untuk berinteraksi dengan Neo Feeder PDDIKTI Web Service.
 
     Attributes:
-        base_url: URL web service Neo Feeder (contoh: 'http://localhost:8082/ws/live2.php').
+        base_url: URL web service Neo Feeder (contoh: 'http://localhost:8100/ws/live2.php').
         username: Kode pengguna web service Feeder.
         password: Password pengguna web service Feeder.
         timeout: Batas waktu permintaan HTTP dalam detik (default: 60 detik).
     """
 
+    DEFAULT_BASE_URL = "http://localhost:8100/ws/live2.php"
+
     def __init__(
         self,
-        base_url: str = "http://localhost:8082/ws/live2.php",
+        base_url: str = "http://localhost:8100/ws/live2.php",
         username: str = "",
         password: str = "",
         timeout: float = 60.0,
@@ -283,9 +285,11 @@ class NeoFeederClient:
 class AsyncNeoFeederClient:
     """Klien asinkron untuk berinteraksi dengan Neo Feeder (untuk integrasi FastAPI/async framework)."""
 
+    DEFAULT_BASE_URL = "http://localhost:8100/ws/live2.php"
+
     def __init__(
         self,
-        base_url: str = "http://localhost:8082/ws/live2.php",
+        base_url: str = "http://localhost:8100/ws/live2.php",
         username: str = "",
         password: str = "",
         timeout: float = 60.0,

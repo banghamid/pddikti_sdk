@@ -312,7 +312,7 @@ def handle_cache(args: argparse.Namespace) -> int:
 
 def handle_feeder(args: argparse.Namespace) -> int:
     """Menangani perintah: pddikti feeder <action>"""
-    url = getattr(args, "url", "http://localhost:8082/ws/live2.php")
+    url = getattr(args, "url", "http://localhost:8100/ws/live2.php")
     user = getattr(args, "user", "")
     password = getattr(args, "password", "")
 
@@ -407,7 +407,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     # feeder test
     feeder_test = sub_feeder.add_parser("test", help="Uji konektivitas dan autentikasi ke server Feeder")
-    feeder_test.add_argument("--url", default="http://localhost:8082/ws/live2.php", help="URL Feeder (default: http://localhost:8082/ws/live2.php)")
+    feeder_test.add_argument("--url", default="http://localhost:8100/ws/live2.php", help="URL Feeder (default: http://localhost:8100/ws/live2.php)")
     feeder_test.add_argument("-u", "--user", default="", help="Username / Kode Pengguna Feeder")
     feeder_test.add_argument("-p", "--password", default="", help="Password Pengguna Feeder")
     feeder_test.add_argument("--json", action="store_true", help="Keluarkan output JSON")
@@ -415,7 +415,7 @@ def create_parser() -> argparse.ArgumentParser:
     # feeder query
     feeder_query = sub_feeder.add_parser("query", help="Jalankan pemanggilan fungsi RPC Feeder")
     feeder_query.add_argument("act", help="Nama fungsi (misal: 'GetProfilPT', 'GetBiodataMahasiswa')")
-    feeder_query.add_argument("--url", default="http://localhost:8082/ws/live2.php", help="URL Feeder")
+    feeder_query.add_argument("--url", default="http://localhost:8100/ws/live2.php", help="URL Feeder")
     feeder_query.add_argument("-u", "--user", default="", help="Username Feeder")
     feeder_query.add_argument("-p", "--password", default="", help="Password Feeder")
     feeder_query.add_argument("--filter", help="Filter string (misal: id_prodi='123')")
