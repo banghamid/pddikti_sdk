@@ -19,6 +19,7 @@ from pddikti_sdk import (
     ProgramStudi,
     RatioAnalyzer,
     StatusKepatuhanRasio,
+    export_laporan_rasio_excel,
     __version__,
 )
 
@@ -190,6 +191,13 @@ def handle_ratio(args: argparse.Namespace) -> int:
         ]
         print_table(["Kode", "Program Studi", "Dosen", "Mhs", "Rasio"], rows)
 
+    if getattr(args, "export", None):
+        try:
+            excel_path = export_laporan_rasio_excel(laporan, args.export)
+            print(f"\n[SUKSES] Laporan Excel berhasil disimpan di: {excel_path}")
+        except Exception as e:
+            print(f"\n[GAGAL] Gagal mengekspor laporan Excel: {e}")
+
     return 0
 
 
@@ -295,6 +303,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser_ratio = subparsers.add_parser("ratio", help="Evaluasi rasio kepatuhan dosen-mahasiswa standar BAN-PT")
     parser_ratio.add_argument("id_pt", help="Hash ID atau kode unik Perguruan Tinggi")
     parser_ratio.add_argument("--only-anomalies", action="store_true", help="Hanya tampilkan prodi dengan anomali ekstrim")
+    parser_ratio.add_argument("-e", "--export", help="Nama atau path file output Excel (.xlsx) untuk laporan berformat rapi")
     parser_ratio.add_argument("--timeout", type=float, default=30.0, help="Batas waktu koneksi HTTP (detik)")
     parser_ratio.add_argument("--json", action="store_true", help="Keluarkan output dalam format JSON")
 

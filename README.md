@@ -66,6 +66,7 @@ pddikti pt <ID_KAMPUS_HASH>
 # 4. Evaluasi kepatuhan rasio dosen-mahasiswa BAN-PT
 pddikti ratio <ID_KAMPUS_HASH>
 pddikti ratio <ID_KAMPUS_HASH> --only-anomalies
+pddikti ratio <ID_KAMPUS_HASH> --export laporan_mutu.xlsx
 
 # 5. Verifikasi peringkat & masa kedaluwarsa akreditasi BAN-PT / LAM
 pddikti akreditasi --peringkat "Unggul" --lembaga "LAM-INFOKOM" --sk "999/SK/2024" --exp "2029-05-20"
@@ -108,6 +109,7 @@ from pddikti_sdk import (
     JenjangStudi,
     BidangStudi,
     RatioAnalyzer,
+    export_laporan_rasio_excel,
 )
 
 # Simulasi data Program Studi
@@ -126,12 +128,16 @@ pt = PerguruanTinggi(
     daftar_prodi=[prodi_hukum],
 )
 
-# Evaluasi kepatuhan rasio BAN-PT
+# 1. Evaluasi kepatuhan rasio BAN-PT
 laporan = RatioAnalyzer.evaluasi_pt(pt)
 
 print(f"Rasio Agregat Kampus: 1 : {laporan.rasio_agregat}")
 for anomali in laporan.prodi_anomali:
     print(f"[PERINGATAN] {anomali.nama_prodi}: {anomali.rekomendasi}")
+
+# 2. Ekspor Laporan Excel Berformat Warna Otomatis (.xlsx)
+file_excel = export_laporan_rasio_excel(laporan, "laporan_kepatuhan_banpt.xlsx")
+print(f"Laporan Excel tersimpan: {file_excel}")
 ```
 
 ---

@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from pddikti_sdk.analytics.aggregator import DataAggregator
+from pddikti_sdk.analytics.excel_exporter import export_laporan_rasio_excel
 from pddikti_sdk.analytics.ratio import LaporanRasioPT, LaporanRasioProdi, RatioAnalyzer
 from pddikti_sdk.models.common import SearchResult
 from pddikti_sdk.models.perguruan_tinggi import PerguruanTinggi, ProgramStudi
@@ -104,6 +105,23 @@ class PDDiktiClient:
             LaporanRasioPT lengkap dengan status kepatuhan BAN-PT dan deteksi anomali.
         """
         return self.analytics.evaluasi_pt(pt)
+
+    def export_ratio_excel(
+        self,
+        pt: PerguruanTinggi,
+        output_path: str = "laporan_rasio_pddikti.xlsx",
+    ):
+        """Menganalisis rasio dan mengekspor hasilnya langsung ke berkas Excel (.xlsx).
+
+        Args:
+            pt: Objek PerguruanTinggi.
+            output_path: Nama atau path berkas tujuan Excel.
+
+        Returns:
+            Path absolut berkas Excel yang berhasil disimpan.
+        """
+        laporan = self.analyze_ratio(pt)
+        return export_laporan_rasio_excel(laporan, output_path)
 
 
 class AsyncPDDiktiClient:

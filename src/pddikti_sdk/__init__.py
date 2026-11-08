@@ -42,10 +42,12 @@ from pddikti_sdk.services import (
 )
 from pddikti_sdk.analytics import (
     DataAggregator,
+    ExcelReportGenerator,
     LaporanRasioPT,
     LaporanRasioProdi,
     RatioAnalyzer,
     StatusKepatuhanRasio,
+    export_laporan_rasio_excel,
 )
 
 __version__ = "0.2.0"
@@ -90,5 +92,7 @@ __all__ = [
     "LaporanRasioPT",
     "LaporanRasioProdi",
     "DataAggregator",
+    "ExcelReportGenerator",
+    "export_laporan_rasio_excel",
     "__version__",
 ]

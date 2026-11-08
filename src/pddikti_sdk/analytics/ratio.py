@@ -2,7 +2,7 @@
 
 from enum import Enum
 from typing import Dict, List, Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from pddikti_sdk.models.perguruan_tinggi import BidangStudi, ProgramStudi, PerguruanTinggi
 
@@ -41,8 +41,9 @@ class LaporanRasioPT(BaseModel):
     total_mahasiswa: int
     rasio_agregat: float
     sebaran_status_prodi: Dict[str, int]
-    prodi_defisit: List[LaporanRasioProdi]
-    prodi_anomali: List[LaporanRasioProdi]
+    daftar_prodi: List[LaporanRasioProdi] = Field(default_factory=list)
+    prodi_defisit: List[LaporanRasioProdi] = Field(default_factory=list)
+    prodi_anomali: List[LaporanRasioProdi] = Field(default_factory=list)
 
 
 class RatioAnalyzer:
@@ -146,6 +147,7 @@ class RatioAnalyzer:
             total_mahasiswa=total_m,
             rasio_agregat=rasio_pt,
             sebaran_status_prodi=sebaran,
+            daftar_prodi=laporan_prodi,
             prodi_defisit=defisit,
             prodi_anomali=anomali,
         )

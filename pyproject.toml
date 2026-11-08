@@ -27,6 +27,7 @@ classifiers = [
 dependencies = [
     "httpx>=0.25.0",
     "pydantic>=2.0.0",
+    "openpyxl>=3.1.0",
 ]
 
 [project.scripts]
