@@ -14,6 +14,7 @@ from pddikti_sdk import (
     BidangStudi,
     DataAggregator,
     JenjangStudi,
+    NeoFeederClient,
     PDDiktiClient,
     PerguruanTinggi,
     ProgramStudi,
@@ -309,6 +310,41 @@ def handle_cache(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_feeder(args: argparse.Namespace) -> int:
+    """Menangani perintah: pddikti feeder <action>"""
+    url = getattr(args, "url", "http://localhost:8082/ws/live2.php")
+    user = getattr(args, "user", "")
+    password = getattr(args, "password", "")
+
+    client = NeoFeederClient(base_url=url, username=user, password=password, timeout=getattr(args, "timeout", 60.0))
+
+    if args.feeder_action == "test":
+        print(f"Menguji koneksi ke Neo Feeder pada {url}...")
+        res = client.test_connection()
+        if args.json:
+            print(json.dumps(res, indent=2, ensure_ascii=False))
+            return 0
+        print(f"Status Koneksi : {res.get('status').upper()}")
+        print(f"Pesan          : {res.get('message')}")
+        if res.get("token_preview"):
+            print(f"Token Otentikasi: {res.get('token_preview')}")
+        return 0 if res.get("status") == "connected" else 1
+
+    elif args.feeder_action == "query":
+        act = args.act
+        kwargs = {}
+        if getattr(args, "filter", None):
+            kwargs["filter"] = args.filter
+        if getattr(args, "limit", None):
+            kwargs["limit"] = args.limit
+
+        res = client.execute(act, **kwargs)
+        print(json.dumps(res, indent=2, ensure_ascii=False))
+        return 0
+
+    return 0
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Membangun argument parser CLI pddikti."""
     parser = argparse.ArgumentParser(
@@ -365,6 +401,26 @@ def create_parser() -> argparse.ArgumentParser:
     parser_cache.add_argument("--expired-only", action="store_true", help="Hanya hapus entri yang telah kedaluwarsa")
     parser_cache.add_argument("--json", action="store_true", help="Keluarkan statistik dalam format JSON")
 
+    # Command: feeder
+    parser_feeder = subparsers.add_parser("feeder", help="Konektor web service Neo Feeder PDDIKTI kampus")
+    sub_feeder = parser_feeder.add_subparsers(dest="feeder_action", help="Aksi Feeder")
+
+    # feeder test
+    feeder_test = sub_feeder.add_parser("test", help="Uji konektivitas dan autentikasi ke server Feeder")
+    feeder_test.add_argument("--url", default="http://localhost:8082/ws/live2.php", help="URL Feeder (default: http://localhost:8082/ws/live2.php)")
+    feeder_test.add_argument("-u", "--user", default="", help="Username / Kode Pengguna Feeder")
+    feeder_test.add_argument("-p", "--password", default="", help="Password Pengguna Feeder")
+    feeder_test.add_argument("--json", action="store_true", help="Keluarkan output JSON")
+
+    # feeder query
+    feeder_query = sub_feeder.add_parser("query", help="Jalankan pemanggilan fungsi RPC Feeder")
+    feeder_query.add_argument("act", help="Nama fungsi (misal: 'GetProfilPT', 'GetBiodataMahasiswa')")
+    feeder_query.add_argument("--url", default="http://localhost:8082/ws/live2.php", help="URL Feeder")
+    feeder_query.add_argument("-u", "--user", default="", help="Username Feeder")
+    feeder_query.add_argument("-p", "--password", default="", help="Password Feeder")
+    feeder_query.add_argument("--filter", help="Filter string (misal: id_prodi='123')")
+    feeder_query.add_argument("--limit", type=int, default=10, help="Jumlah maksimal data")
+
     return parser
 
 
@@ -389,6 +445,11 @@ def main(args: Optional[List[str]] = None) -> int:
         return handle_demo_sinta(parsed_args)
     elif parsed_args.command == "cache":
         return handle_cache(parsed_args)
+    elif parsed_args.command == "feeder":
+        if not parsed_args.feeder_action:
+            parser_feeder.print_help()
+            return 0
+        return handle_feeder(parsed_args)
 
     return 0
 

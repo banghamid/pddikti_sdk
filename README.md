@@ -26,10 +26,12 @@ Dirancang khusus untuk membantu **peneliti sosial**, **jurnalis data**, **analis
 4. **📊 Mesin Evaluasi Rasio Dosen-Mahasiswa (`RatioAnalyzer`):**
    - Standar BAN-PT untuk rumpun **Eksakta / Teknik / Kesehatan** (Ideal $\le$ 1:20, toleransi s.d. 1:35) dan **Sosial / Humaniora** (Ideal $\le$ 1:30, toleransi s.d. 1:45).
    - Deteksi otomatis anomali ekstrim (> 1:100 atau prodi aktif tanpa dosen tetap terdaftar) serta rekomendasi kebutuhan formasi dosen.
-5. **⚡ Arsitektur Modern, Asinkron, & Cache SQLite:**
-   - Menyediakan `PDDiktiClient` (Sync) dan `AsyncPDDiktiClient` (Async) berbasis `httpx`.
-   - Penyimpanan cache SQLite lokal (`SQLiteCache`) terintegrasi dengan batas masa berlaku (TTL) untuk mencegah *rate limit* (HTTP 429) dan mempercepat respons query hingga < 5 milidetik.
-   - Ekspor mudah ke format Pandas DataFrame dan dokumen Excel (.xlsx) berwarna otomatis.
+5. **⚡ Arsitektur Dual-Mode & Integrasi Neo Feeder Kampus:**
+   - **Mode Publik:** `PDDiktiClient` & `AsyncPDDiktiClient` untuk data publik Dikti, SINTA, dan akreditasi BAN-PT dengan akselerasi cache SQLite.
+   - **Mode Kampus:** `NeoFeederClient` & `AsyncNeoFeederClient` untuk komunikasi langsung ke server Feeder internal kampus (`ws/live2.php` atau `ws/sandbox2.php`), dilengkapi *handshake token* otomatis, *auto-retry* saat sesi habis, dan streaming data mahasiswa/dosen bertahap (`iter_records`).
+6. **📊 Ekspor Laporan & Tooling:**
+   - Ekspor laporan kepatuhan rasio ke Excel (.xlsx) dengan pewarnaan mutu BAN-PT otomatis.
+   - Konversi mudah ke Pandas DataFrame.
 
 ---
 
@@ -83,6 +85,10 @@ pddikti akreditasi --peringkat "A" --json
 pddikti cache --stats
 pddikti cache --clear
 pddikti search "ITB" --no-cache
+
+# 9. Integrasi Neo Feeder Kampus (Web Service SIAKAD)
+pddikti feeder test --url http://localhost:8082/ws/live2.php -u user_feeder -p pass_feeder
+pddikti feeder query GetProfilPT --url http://localhost:8082/ws/live2.php -u user_feeder -p pass_feeder
 ```
 
 ---
@@ -190,6 +196,31 @@ akreditasi = BanptService.parse_akreditasi_info({
 
 print(f"Peringkat : {akreditasi.peringkat.value} ({akreditasi.lembaga.value})")
 print(f"Status    : {'Aktif' if not akreditasi.is_expired else 'Kedaluwarsa'}")
+```
+
+### 5. Integrasi Sistem Kampus (Neo Feeder Web Service)
+
+```python
+from pddikti_sdk import NeoFeederClient
+
+# Inisialisasi koneksi ke server Feeder kampus
+feeder = NeoFeederClient(
+    base_url="http://localhost:8082/ws/live2.php",
+    username="operator_kampus",
+    password="password_rahasia",
+)
+
+# 1. Uji koneksi dan periksa token
+status = feeder.test_connection()
+print(f"Status Feeder: {status['status']}")
+
+# 2. Ambil profil PT kampus
+profil = feeder.get_profil_pt()
+print(f"Kampus: {profil.get('nama_perguruan_tinggi')}")
+
+# 3. Stream data mahasiswa bertahap (aman memori untuk ribuan data)
+for mhs in feeder.iter_records("GetBiodataMahasiswa", chunk_size=100, max_records=500):
+    print(f"[{mhs['nim']}] {mhs['nama_mahasiswa']}")
 ```
 
 ---
