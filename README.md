@@ -2,27 +2,43 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Pydantic v2](https://img.shields.io/badge/Pydantic-v2-e92063.svg)](https://docs.pydantic.dev/)
+[![Tests](https://img.shields.io/badge/tests-16%20passed-brightgreen.svg)]()
 
-Python SDK modern dan mudah digunakan untuk berinteraksi dengan data PDDikti (Pangkalan Data Pendidikan Tinggi) Kemendikbudristek.
+**PDDikti SDK** adalah pustaka Python modern, terawat, dan dilengkapi sistem *type safety* lengkap (Pydantic V2) untuk mengakses dan menganalisis data ekosistem pendidikan tinggi Indonesia: **PDDikti Kemendikbudristek**, **Publikasi & Metrik SINTA**, **Akreditasi BAN-PT & Lembaga Akreditasi Mandiri (LAM)**, serta **Mesin Analisis Rasio Kepatuhan Dosen-Mahasiswa**.
 
----
-
-## Fitur Utama
-
-- 🚀 **Ringan & Cepat:** Menggunakan `httpx` untuk performa permintaan HTTP yang optimal.
-- 🛡️ **Validasi Data:** Terintegrasi dengan model `pydantic` untuk parsing dan validasi data.
-- 🔍 **Pencarian Komprehensif:** Mendukung pencarian Mahasiswa, Dosen, Perguruan Tinggi, dan Program Studi.
-- 📦 **Modern Packaging:** Sesuai standar PEP 517 / PEP 621 menggunakan `pyproject.toml`.
+Dirancang khusus untuk membantu **peneliti sosial**, **jurnalis data**, **analis kebijakan publik**, dan **pengembang sistem informasi kampus** dalam membaca serta mengevaluasi tren pendidikan tinggi di Indonesia.
 
 ---
 
-## Instalasi
+## 🎯 Fitur Utama
+
+1. **🏛️ Data Agregat Perguruan Tinggi & Prodi:**
+   - Pencarian multi-entitas cerdas (Mahasiswa, Dosen, PT, Program Studi).
+   - Profil lengkap PT, sebaran jenjang studi (D3, D4, S1, S2, S3), dan status keaktifan.
+2. **🔬 Integrasi Publikasi & Metrik SINTA:**
+   - Skor SINTA Author & Institusi (*Overall*, *3-Years*, *Productivity Score*).
+   - Metrik publikasi multi-basis data: Scopus (*h-index*, sitasi, dokumen), Google Scholar, GARUDA, Web of Science (WoS), serta Kekayaan Intelektual (Paten & Hak Cipta).
+3. **📜 Akreditasi BAN-PT & Lembaga Akreditasi Mandiri (LAM):**
+   - Normalisasi status peringkat (Unggul, Baik Sekali, Baik, A, B, C).
+   - Dukungan multi-lembaga: BAN-PT, LAM-INFOKOM, LAM-PTKes, LAMEMBA, LAMDIK, LAM Teknik, LAMSAMA.
+   - Pengecekan otomatis masa berlaku SK akreditasi (*expiration detector*).
+4. **📊 Mesin Evaluasi Rasio Dosen-Mahasiswa (`RatioAnalyzer`):**
+   - Standar BAN-PT untuk rumpun **Eksakta / Teknik / Kesehatan** (Ideal $\le$ 1:20, toleransi s.d. 1:35) dan **Sosial / Humaniora** (Ideal $\le$ 1:30, toleransi s.d. 1:45).
+   - Deteksi otomatis anomali ekstrim (> 1:100 atau prodi aktif tanpa dosen tetap terdaftar) serta rekomendasi kebutuhan formasi dosen.
+5. **⚡ Arsitektur Modern & Asinkron:**
+   - Menyediakan `PDDiktiClient` (Sync) dan `AsyncPDDiktiClient` (Async) berbasis `httpx`.
+   - Ekspor mudah ke format Pandas DataFrame untuk pengolahan statistik lanjutan.
+
+---
+
+## 📦 Instalasi
 
 ```bash
 pip install pddikti-sdk
 ```
 
-Atau instalasi langsung untuk development:
+Atau instalasi mode pengembang dari repositori:
 
 ```bash
 git clone https://github.com/banghamid/pddikti_sdk.git
@@ -32,39 +48,147 @@ pip install -e .
 
 ---
 
-## Contoh Penggunaan Cepat
+## 🚀 Panduan Penggunaan
+
+### 1. Pencarian Agregat & Profil Perguruan Tinggi
 
 ```python
 from pddikti_sdk import PDDiktiClient
 
-# Inisialisasi client
 with PDDiktiClient() as client:
-    # Pencarian kata kunci
-    hasil = client.search("Universitas Gadjah Mada")
-    print(hasil)
+    # Pencarian agregat
+    hasil = client.search("Universitas Indonesia")
+    print(f"Total temuan: {hasil.total_hits}")
+
+    for pt in hasil.perguruan_tinggi:
+        print(f"[{pt.id}] {pt.text}")
 ```
 
 ---
 
-## Struktur Repositori
+### 2. Evaluasi Rasio Dosen-Mahasiswa & Deteksi Anomali
+
+```python
+from pddikti_sdk import (
+    PDDiktiClient,
+    PerguruanTinggi,
+    ProgramStudi,
+    JenjangStudi,
+    BidangStudi,
+    RatioAnalyzer,
+)
+
+# Simulasi data Program Studi
+prodi_hukum = ProgramStudi(
+    kode="74201",
+    nama_prodi="Ilmu Hukum",
+    jenjang=JenjangStudi.S1,
+    bidang=BidangStudi.NON_EKSAKTA,
+    dosen_count=3,
+    mahasiswa_count=390,  # Rasio 1:130 (anomali)
+)
+
+pt = PerguruanTinggi(
+    kode="001001",
+    nama_pt="Universitas Contoh",
+    daftar_prodi=[prodi_hukum],
+)
+
+# Evaluasi kepatuhan rasio BAN-PT
+laporan = RatioAnalyzer.evaluasi_pt(pt)
+
+print(f"Rasio Agregat Kampus: 1 : {laporan.rasio_agregat}")
+for anomali in laporan.prodi_anomali:
+    print(f"[PERINGATAN] {anomali.nama_prodi}: {anomali.rekomendasi}")
+```
+
+---
+
+### 3. Analisis Produktivitas Riset Dosen (SINTA & Scopus)
+
+```python
+from pddikti_sdk import SintaService, DataAggregator
+
+sinta = SintaService()
+
+author = sinta.parse_author_data({
+    "id": "6001234",
+    "fullname": "Dr. Ir. Ahmad Santoso, M.T.",
+    "affiliation_name": "Institut Teknologi Nusantara",
+    "scores": {"overall": 1250.5, "three_years": 480.0},
+    "scopus": {"h_index": 8, "citations": 230, "documents": 18},
+    "scholar": {"h_index": 14, "citations": 620, "documents": 35},
+    "ipr": {"patent": 2, "copyright": 5},
+})
+
+print(f"Author: {author.nama} | SINTA 3Yr: {author.scores.three_years}")
+print(f"Scopus H-Index: {author.scopus.h_index} | Citations: {author.scopus.citations}")
+```
+
+---
+
+### 4. Verifikasi Status Akreditasi BAN-PT & LAM
+
+```python
+from pddikti_sdk import BanptService
+
+akreditasi = BanptService.parse_akreditasi_info({
+    "akreditasi": "Unggul",
+    "lembaga": "LAM-INFOKOM",
+    "no_sk": "112/SK/LAM-INFOKOM/Akred/S/X/2024",
+    "tgl_kadaluarsa": "2029-10-15",
+})
+
+print(f"Peringkat : {akreditasi.peringkat.value} ({akreditasi.lembaga.value})")
+print(f"Status    : {'Aktif' if not akreditasi.is_expired else 'Kedaluwarsa'}")
+```
+
+---
+
+## 📁 Struktur Repositori
 
 ```text
 pddikti_sdk/
 ├── src/
 │   └── pddikti_sdk/
-│       ├── __init__.py
-│       └── client.py
+│       ├── __init__.py          # Entrypoint & ekspor publik
+│       ├── client.py            # PDDiktiClient & AsyncPDDiktiClient
+│       ├── exceptions.py        # Hierarki exception khusus
+│       ├── models/              # Validasi model berbasis Pydantic V2
+│       │   ├── common.py        # Model entitas & hasil pencarian
+│       │   ├── perguruan_tinggi.py # Profil PT, Prodi, Statistik
+│       │   ├── sdm.py           # Model Dosen & Mahasiswa
+│       │   ├── akreditasi.py    # BAN-PT & Lembaga Akreditasi Mandiri (LAM)
+│       │   └── sinta.py         # Author SINTA, Scopus, Scholar, H-Index
+│       ├── services/            # Service integrasi endpoint
+│       │   ├── pddikti.py       # PDDikti frontend API client (sync/async)
+│       │   ├── sinta.py         # SINTA parser & service
+│       │   └── banpt.py         # Akreditasi parser & validator
+│       └── analytics/           # Analisis untuk jurnalis & periset
+│           ├── ratio.py         # Rasio dosen-mahasiswa & detektor anomali
+│           └── aggregator.py    # Agregator sebaran wilayah & DataFrame converter
+├── examples/
+│   ├── analisis_rasio_dosen_mahasiswa.py
+│   └── analisis_sinta_dan_akreditasi.py
 ├── tests/
-│   ├── __init__.py
+│   ├── test_models.py
+│   ├── test_analytics.py
+│   ├── test_services.py
 │   └── test_client.py
-├── .gitignore
-├── LICENSE
 ├── pyproject.toml
 └── README.md
 ```
 
 ---
 
-## Lisensi
+## 🧪 Menjalankan Pengujian
 
-Proyek ini dilisensikan di bawah [MIT License](LICENSE).
+```bash
+pytest -v
+```
+
+---
+
+## 📄 Lisensi
+
+Didistribusikan di bawah lisensi [MIT License](LICENSE). Hak Cipta (c) 2026 banghamid.

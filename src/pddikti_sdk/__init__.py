@@ -1,6 +1,94 @@
-"""PDDikti SDK - Python SDK untuk PDDikti (Pangkalan Data Pendidikan Tinggi)."""
+"""PDDikti SDK - Modern & Type-Safe SDK untuk Data Dikti, SINTA, dan Akreditasi BAN-PT."""
 
-from pddikti_sdk.client import PDDiktiClient
+from pddikti_sdk.client import AsyncPDDiktiClient, PDDiktiClient
+from pddikti_sdk.exceptions import (
+    APIConnectionError,
+    PDDiktiError,
+    RateLimitError,
+    ResourceNotFoundError,
+    ValidationError,
+)
+from pddikti_sdk.models import (
+    AkreditasiInfo,
+    BentukPendidikan,
+    BidangStudi,
+    Dosen,
+    EntityType,
+    GarudaMetrics,
+    GoogleScholarMetrics,
+    IprMetrics,
+    JabatanFungsional,
+    JenjangStudi,
+    LembagaAkreditasi,
+    Mahasiswa,
+    PerguruanTinggi,
+    PeringkatAkreditasi,
+    ProgramStudi,
+    ScopusMetrics,
+    SearchResult,
+    SintaAuthor,
+    SintaInstitution,
+    SintaScore,
+    StatusDosen,
+    StatusMahasiswa,
+    StatusPT,
+    WosMetrics,
+)
+from pddikti_sdk.services import (
+    BanptService,
+    PDDiktiService,
+    AsyncPDDiktiService,
+    SintaService,
+)
+from pddikti_sdk.analytics import (
+    DataAggregator,
+    LaporanRasioPT,
+    LaporanRasioProdi,
+    RatioAnalyzer,
+    StatusKepatuhanRasio,
+)
 
-__version__ = "0.1.0"
-__all__ = ["PDDiktiClient", "__version__"]
+__version__ = "0.2.0"
+__all__ = [
+    "PDDiktiClient",
+    "AsyncPDDiktiClient",
+    "PDDiktiService",
+    "AsyncPDDiktiService",
+    "SintaService",
+    "BanptService",
+    "PDDiktiError",
+    "APIConnectionError",
+    "ResourceNotFoundError",
+    "RateLimitError",
+    "ValidationError",
+    "SearchResult",
+    "EntityType",
+    "PerguruanTinggi",
+    "ProgramStudi",
+    "BentukPendidikan",
+    "StatusPT",
+    "JenjangStudi",
+    "BidangStudi",
+    "Dosen",
+    "Mahasiswa",
+    "StatusDosen",
+    "StatusMahasiswa",
+    "JabatanFungsional",
+    "AkreditasiInfo",
+    "PeringkatAkreditasi",
+    "LembagaAkreditasi",
+    "SintaAuthor",
+    "SintaInstitution",
+    "SintaScore",
+    "ScopusMetrics",
+    "GoogleScholarMetrics",
+    "GarudaMetrics",
+    "WosMetrics",
+    "IprMetrics",
+    "RatioAnalyzer",
+    "StatusKepatuhanRasio",
+    "LaporanRasioPT",
+    "LaporanRasioProdi",
+    "DataAggregator",
+    "__version__",
+]

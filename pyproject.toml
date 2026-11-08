@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pddikti-sdk"
-version = "0.1.0"
-description = "Python SDK untuk integrasi dan pengaksesan data PDDikti (Pangkalan Data Pendidikan Tinggi)"
+version = "0.2.0"
+description = "SDK Modern & Type-Safe untuk Data Pendidikan Tinggi Indonesia (PDDikti, SINTA, Akreditasi BAN-PT/LAM, dan Analisis Rasio Dosen-Mahasiswa)"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
