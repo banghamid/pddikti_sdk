@@ -29,6 +29,10 @@ dependencies = [
     "pydantic>=2.0.0",
 ]
 
+[project.scripts]
+pddikti = "pddikti_sdk.cli:main"
+pddikti-cli = "pddikti_sdk.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",

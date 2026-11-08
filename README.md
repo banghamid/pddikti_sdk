@@ -48,7 +48,39 @@ pip install -e .
 
 ---
 
-## 🚀 Panduan Penggunaan
+## 💻 Antarmuka Baris Perintah (CLI Tool: `pddikti-cli` / `pddikti`)
+
+`pddikti-sdk` dilengkapi dengan antarmuka terminal interaktif yang dapat langsung dijalankan tanpa menulis kode Python:
+
+```bash
+# 1. Bantuan dan daftar perintah
+pddikti --help
+
+# 2. Pencarian data multi-entitas
+pddikti search "Universitas Indonesia"
+pddikti search "Teknik Informatika" --category prodi --limit 5
+
+# 3. Inspeksi profil Perguruan Tinggi
+pddikti pt <ID_KAMPUS_HASH>
+
+# 4. Evaluasi kepatuhan rasio dosen-mahasiswa BAN-PT
+pddikti ratio <ID_KAMPUS_HASH>
+pddikti ratio <ID_KAMPUS_HASH> --only-anomalies
+
+# 5. Verifikasi peringkat & masa kedaluwarsa akreditasi BAN-PT / LAM
+pddikti akreditasi --peringkat "Unggul" --lembaga "LAM-INFOKOM" --sk "999/SK/2024" --exp "2029-05-20"
+
+# 6. Simulasi agregasi riset SINTA
+pddikti sinta --demo
+
+# 7. Output JSON mentah (cocok untuk scripting dan pipe ke jq)
+pddikti search "UGM" --json
+pddikti akreditasi --peringkat "A" --json
+```
+
+---
+
+## 🚀 Panduan Penggunaan Python SDK
 
 ### 1. Pencarian Agregat & Profil Perguruan Tinggi
 

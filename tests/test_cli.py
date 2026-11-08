@@ -1,0 +1,50 @@
+import io
+import json
+import sys
+from pddikti_sdk.cli import create_parser, main, print_table
+
+
+def test_cli_table_formatter(capsys):
+    headers = ["Nama", "Peran"]
+    rows = [["Budi", "Dosen"], ["Siti", "Mahasiswa"]]
+    print_table(headers, rows, title="Uji Tabel")
+    captured = capsys.readouterr().out
+    assert "Uji Tabel" in captured
+    assert "Budi" in captured
+    assert "Mahasiswa" in captured
+
+
+def test_cli_akreditasi_json(capsys):
+    ret = main([
+        "akreditasi",
+        "--peringkat", "Unggul",
+        "--lembaga", "LAM-INFOKOM",
+        "--sk", "123/SK/2024",
+        "--exp", "2029-12-31",
+        "--json",
+    ])
+    assert ret == 0
+    captured = capsys.readouterr().out
+    data = json.loads(captured)
+    assert data["peringkat"] == "Unggul"
+    assert data["lembaga"] == "LAM-INFOKOM"
+    assert data["status_aktif"] is True
+
+
+def test_cli_sinta_demo_json(capsys):
+    ret = main(["sinta", "--demo", "--json"])
+    assert ret == 0
+    captured = capsys.readouterr().out
+    data = json.loads(captured)
+    assert "total_author" in data
+    assert data["total_author"] == 2
+    assert "total_scopus_documents" in data
+
+
+def test_cli_help(capsys):
+    ret = main([])
+    assert ret == 0
+    captured = capsys.readouterr().out
+    assert "PDDikti CLI" in captured
+    assert "search" in captured
+    assert "ratio" in captured
