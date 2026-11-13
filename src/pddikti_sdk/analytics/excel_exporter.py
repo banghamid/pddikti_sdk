@@ -26,6 +26,16 @@ except ImportError:
 class ExcelReportGenerator:
     """Generator dokumen Excel untuk laporan kepatuhan rasio mutu BAN-PT."""
 
+    # Karakter awal yang memicu eksekusi formula di aplikasi spreadsheet (CSV/Formula Injection)
+    _FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+    @classmethod
+    def _sanitize_cell_value(cls, value: object) -> object:
+        """Menyanitasi nilai teks agar tidak dieksekusi sebagai formula berbahaya oleh Excel."""
+        if isinstance(value, str) and value.startswith(cls._FORMULA_PREFIXES):
+            return f"'{value}"
+        return value
+
     # Palet warna status mutu (Soft fill dengan teks terbaca)
     STYLE_MAP = {
         StatusKepatuhanRasio.IDEAL: {
@@ -85,7 +95,8 @@ class ExcelReportGenerator:
             )
 
         wb = openpyxl.Workbook()
-        path = Path(output_path).resolve()
+        path = Path(output_path).expanduser().resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
 
         # Styles umum
         thin_side = Side(style="thin", color="D9D9D9")
@@ -139,7 +150,7 @@ class ExcelReportGenerator:
             ws_summary[f"B{idx}"].border = data_border
             ws_summary[f"B{idx}"].fill = PatternFill(start_color="F2F2F2", fill_type="solid")
 
-            ws_summary[f"C{idx}"] = val
+            ws_summary[f"C{idx}"] = cls._sanitize_cell_value(val)
             ws_summary[f"C{idx}"].font = regular_font
             ws_summary[f"C{idx}"].border = data_border
             if isinstance(val, int):
@@ -241,7 +252,7 @@ class ExcelReportGenerator:
             ]
 
             for c_idx, (val, alignment, num_fmt) in enumerate(row_values, start=1):
-                c = ws_detail.cell(row=row_num, column=c_idx, value=val)
+                c = ws_detail.cell(row=row_num, column=c_idx, value=cls._sanitize_cell_value(val))
                 c.alignment = alignment
                 c.border = data_border
                 c.fill = row_fill

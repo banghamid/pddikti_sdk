@@ -108,3 +108,21 @@ def test_data_aggregator_sinta():
     assert rekap["total_scopus_citations"] == 100
     assert rekap["rata_rata_skor_3tahun"] == 200.0
     assert rekap["h_index_scopus_tertinggi"] == 7
+
+
+def test_ratio_analyzer_exact_ideal_deficit_needed():
+    # Eksakta ideal = 20.0, toleransi = 35.0
+    # Jika mhs = 400 (pas kelipatan 20) dan dosen = 10 (rasio 1:40 > 35),
+    # untuk mencapai rasio ideal 1:20 dibutuhkan tepat (400 / 20) - 10 = 10 dosen, bukan 11.
+    prodi = ProgramStudi(
+        kode="55201",
+        nama_prodi="Teknik Elektro",
+        jenjang=JenjangStudi.S1,
+        bidang=BidangStudi.EKSAKTA,
+        dosen_count=10,
+        mahasiswa_count=400,
+    )
+    laporan = RatioAnalyzer.evaluasi_prodi(prodi)
+    assert laporan.status == StatusKepatuhanRasio.DEFISIT_DOSEN
+    assert "minimal 10 dosen" in laporan.rekomendasi
+

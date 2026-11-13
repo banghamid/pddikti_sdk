@@ -51,13 +51,19 @@ def test_cli_help(capsys):
     assert "cache" in captured
 
 
-def test_cli_cache_commands(capsys):
+def test_cli_cache_commands(monkeypatch, tmp_path, capsys):
+    from pddikti_sdk.client import PDDiktiClient
+
+    temp_db = tmp_path / "cli_test_cache.db"
+    monkeypatch.setattr(PDDiktiClient, "DEFAULT_CACHE_FILE", str(temp_db))
+
     # Test stats
     ret_stats = main(["cache", "--json"])
     assert ret_stats == 0
     captured = capsys.readouterr().out
     stats = json.loads(captured)
     assert "database_path" in stats
+    assert str(temp_db) in stats["database_path"]
     assert "total_entries" in stats
 
     # Test clear
@@ -66,3 +72,5 @@ def test_cli_cache_commands(capsys):
     captured_clear = capsys.readouterr().out
     res = json.loads(captured_clear)
     assert "deleted" in res
+
+

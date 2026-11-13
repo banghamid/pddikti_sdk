@@ -28,6 +28,10 @@ class SQLiteCache:
         else:
             p = Path(db_path).expanduser().resolve()
             p.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                os.chmod(p.parent, 0o700)
+            except OSError:
+                pass
             self.db_path = str(p)
             self._shared_conn = None
 
@@ -37,6 +41,11 @@ class SQLiteCache:
         self._misses = 0
 
         self._init_db()
+        if self.db_path != ":memory:" and os.path.exists(self.db_path):
+            try:
+                os.chmod(self.db_path, 0o600)
+            except OSError:
+                pass
 
     def _get_connection(self) -> sqlite3.Connection:
         """Membuat koneksi SQLite baru atau mengembalikan koneksi in-memory bersama."""

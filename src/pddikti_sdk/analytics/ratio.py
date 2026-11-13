@@ -1,6 +1,7 @@
 """Modul analisis kepatuhan dan anomali rasio dosen-mahasiswa sesuai standar nasional."""
 
 from enum import Enum
+import math
 from typing import Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -93,7 +94,7 @@ class RatioAnalyzer:
                 rekomendasi = f"Rasio 1:{rasio} melampaui batas wajar 1:100. Beban mengajar dosen tidak proporsional."
             elif rasio > ambang["toleransi"]:
                 status = StatusKepatuhanRasio.DEFISIT_DOSEN
-                dosen_dibutuhkan = int((mhs / ambang["ideal"]) - dosen) + 1
+                dosen_dibutuhkan = max(1, math.ceil(mhs / ambang["ideal"]) - dosen)
                 rekomendasi = f"Rasio 1:{rasio} melebihi batas toleransi 1:{ambang['toleransi']}. Disarankan menambah minimal {dosen_dibutuhkan} dosen."
             elif rasio > ambang["ideal"]:
                 status = StatusKepatuhanRasio.MEMENUHI

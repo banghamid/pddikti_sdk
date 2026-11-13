@@ -86,3 +86,34 @@ def test_excel_export_file_creation(tmp_path):
     # Setidaknya ada warna fill yang diterapkan (bukan None atau transparan)
     assert any(c is not None for c in fill_colors)
     wb.close()
+
+
+def test_excel_export_sanitizes_formula_injection(tmp_path):
+    p_malicious = ProgramStudi(
+        kode="=CMD|' /C calc'!A0",
+        nama_prodi="+SUM(1,1)*cmd",
+        jenjang=JenjangStudi.S1,
+        bidang=BidangStudi.EKSAKTA,
+        dosen_count=5,
+        mahasiswa_count=100,
+    )
+    pt = PerguruanTinggi(
+        kode="-001001",
+        nama_pt="@Universitas EvilFormula()",
+        daftar_prodi=[p_malicious],
+    )
+    laporan = RatioAnalyzer.evaluasi_pt(pt)
+    out_file = tmp_path / "subdir" / "aman_formula.xlsx"
+    saved_path = export_laporan_rasio_excel(laporan, out_file)
+
+    wb = openpyxl.load_workbook(saved_path)
+    ws_sum = wb["Ringkasan Eksekutif"]
+    ws_det = wb["Detail Program Studi"]
+
+    # Nilai yang diawali karakter formula (=, +, -, @) harus di-prefiks dengan tanda kutip tunggal (')
+    assert str(ws_sum["C6"].value).startswith("'")
+    assert str(ws_sum["C7"].value).startswith("'")
+    assert str(ws_det.cell(row=2, column=2).value).startswith("'")
+    assert str(ws_det.cell(row=2, column=3).value).startswith("'")
+    wb.close()
+

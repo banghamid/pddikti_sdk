@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-v2-e92063.svg)](https://docs.pydantic.dev/)
-[![Tests](https://img.shields.io/badge/tests-27%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-34%20passed-brightgreen.svg)]()
 
 **PDDikti SDK** adalah pustaka Python modern, terawat, dan dilengkapi sistem *type safety* lengkap (Pydantic V2) untuk mengakses dan menganalisis data ekosistem pendidikan tinggi Indonesia: **PDDikti Kemendikbudristek**, **Publikasi & Metrik SINTA**, **Akreditasi BAN-PT & Lembaga Akreditasi Mandiri (LAM)**, serta **Mesin Analisis Rasio Kepatuhan Dosen-Mahasiswa**.
 
@@ -221,7 +221,10 @@ pddikti_sdk/
 │   └── pddikti_sdk/
 │       ├── __init__.py          # Entrypoint & ekspor publik
 │       ├── client.py            # PDDiktiClient & AsyncPDDiktiClient
+│       ├── cli.py               # Antarmuka terminal (CLI) pddikti / pddikti-cli
 │       ├── exceptions.py        # Hierarki exception khusus
+│       ├── cache/               # Penyimpanan cache persisten
+│       │   └── sqlite_cache.py  # Manajer cache SQLite thread-safe dengan TTL
 │       ├── models/              # Validasi model berbasis Pydantic V2
 │       │   ├── common.py        # Model entitas & hasil pencarian
 │       │   ├── perguruan_tinggi.py # Profil PT, Prodi, Statistik
@@ -234,15 +237,21 @@ pddikti_sdk/
 │       │   └── banpt.py         # Akreditasi parser & validator
 │       └── analytics/           # Analisis untuk jurnalis & periset
 │           ├── ratio.py         # Rasio dosen-mahasiswa & detektor anomali
-│           └── aggregator.py    # Agregator sebaran wilayah & DataFrame converter
+│           ├── aggregator.py    # Agregator sebaran wilayah & DataFrame converter
+│           └── excel_exporter.py # Generator laporan spreadsheet Excel (.xlsx)
 ├── examples/
 │   ├── analisis_rasio_dosen_mahasiswa.py
-│   └── analisis_sinta_dan_akreditasi.py
+│   ├── analisis_sinta_dan_akreditasi.py
+│   ├── cache_demo.py
+│   └── export_laporan_excel.py
 ├── tests/
 │   ├── test_models.py
 │   ├── test_analytics.py
 │   ├── test_services.py
-│   └── test_client.py
+│   ├── test_client.py
+│   ├── test_cache.py
+│   ├── test_cli.py
+│   └── test_excel_exporter.py
 ├── pyproject.toml
 └── README.md
 ```

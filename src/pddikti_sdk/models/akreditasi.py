@@ -45,6 +45,8 @@ class AkreditasiInfo(BaseModel):
     @property
     def is_expired(self) -> bool:
         """Mengecek apakah masa berlaku sertifikat akreditasi telah terlampaui."""
+        if not self.status_aktif or self.peringkat == PeringkatAkreditasi.KEDALUWARSA:
+            return True
         if not self.tanggal_kedaluwarsa:
             return False
         today = date.today()
