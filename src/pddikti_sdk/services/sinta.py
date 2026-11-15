@@ -1,9 +1,11 @@
 """Layanan pengaksesan dan integrasi data SINTA (Science and Technology Index)."""
 
+import math
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 import httpx
 
-from pddikti_sdk.exceptions import APIConnectionError, ResourceNotFoundError
+from pddikti_sdk.exceptions import APIConnectionError, ResourceNotFoundError, ValidationError
 from pddikti_sdk.models.sinta import (
     GarudaMetrics,
     GoogleScholarMetrics,
@@ -16,13 +18,58 @@ from pddikti_sdk.models.sinta import (
 )
 
 
+def _validate_http_url(url: str, field_name: str = "base_url") -> str:
+    """Memvalidasi bahwa URL menggunakan skema HTTP/HTTPS yang valid dan memiliki host."""
+    if not isinstance(url, str) or not url.strip():
+        raise ValidationError(f"Parameter '{field_name}' tidak boleh kosong.")
+    clean_url = url.strip().rstrip("/")
+    parsed = urlparse(clean_url)
+    if parsed.scheme.lower() not in ("http", "https") or not parsed.netloc:
+        raise ValidationError(
+            f"Parameter '{field_name}' harus berupa URL HTTP/HTTPS yang valid: {url!r}"
+        )
+    return clean_url
+
+
+def _safe_int(val: Any, default: int = 0, min_value: Optional[int] = None) -> int:
+    """Konversi nilai ke int secara aman terhadap NaN, Infinity, None, dan tipe tidak valid."""
+    if val is None or isinstance(val, bool):
+        return default
+    try:
+        num = float(val)
+        if not math.isfinite(num):
+            return default
+        result = int(num)
+    except (ValueError, TypeError, OverflowError):
+        return default
+    if min_value is not None and result < min_value:
+        return min_value
+    return result
+
+
+def _safe_float(val: Any, default: float = 0.0, min_value: Optional[float] = None) -> float:
+    """Konversi nilai ke float secara aman terhadap NaN, Infinity, None, dan tipe tidak valid."""
+    if val is None or isinstance(val, bool):
+        return default
+    try:
+        result = float(val)
+        if not math.isfinite(result):
+            return default
+    except (ValueError, TypeError, OverflowError):
+        return default
+    if min_value is not None and result < min_value:
+        return min_value
+    return result
+
+
 class SintaService:
     """Implementasi sinkron untuk integrasi data SINTA."""
 
     DEFAULT_SINTA_URL = "https://sinta.kemdikbud.go.id"
 
     def __init__(self, client: Optional[httpx.Client] = None, base_url: Optional[str] = None) -> None:
-        self.base_url = (base_url or self.DEFAULT_SINTA_URL).rstrip("/")
+        raw_url = self.DEFAULT_SINTA_URL if base_url is None else base_url
+        self.base_url = _validate_http_url(raw_url, "sinta_base_url")
         self._owns_client = client is None
         self._client = client or httpx.Client(
             base_url=self.base_url,
@@ -46,21 +93,11 @@ class SintaService:
 
     @staticmethod
     def _safe_int(val: Any, default: int = 0) -> int:
-        if val is None or isinstance(val, bool):
-            return default
-        try:
-            return int(float(val))
-        except (ValueError, TypeError):
-            return default
+        return _safe_int(val, default=default, min_value=0)
 
     @staticmethod
     def _safe_float(val: Any, default: float = 0.0) -> float:
-        if val is None or isinstance(val, bool):
-            return default
-        try:
-            return float(val)
-        except (ValueError, TypeError):
-            return default
+        return _safe_float(val, default=default, min_value=0.0)
 
     def parse_author_data(self, data: Dict[str, Any]) -> SintaAuthor:
         """Membuat model SintaAuthor dari dictionary data terstruktur."""

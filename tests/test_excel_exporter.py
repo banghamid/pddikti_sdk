@@ -117,3 +117,34 @@ def test_excel_export_sanitizes_formula_injection(tmp_path):
     assert str(ws_det.cell(row=2, column=3).value).startswith("'")
     wb.close()
 
+
+def test_excel_export_sanitizes_leading_whitespace_newline_pipe_and_xml_ctrl(tmp_path):
+    p_edge = ProgramStudi(
+        kode=" =SUM(1,1)",
+        nama_prodi="\n=CMD|' /C calc'!A0\x00\x07",
+        jenjang=JenjangStudi.S1,
+        bidang=BidangStudi.EKSAKTA,
+        dosen_count=5,
+        mahasiswa_count=100,
+    )
+    pt = PerguruanTinggi(
+        kode="|calc",
+        nama_pt="Kampus\x0bAman\x1f",
+        daftar_prodi=[p_edge],
+    )
+    laporan = RatioAnalyzer.evaluasi_pt(pt)
+    out_file = tmp_path / "aman_edge.xlsx"
+    saved_path = export_laporan_rasio_excel(laporan, out_file)
+
+    wb = openpyxl.load_workbook(saved_path)
+    ws_sum = wb["Ringkasan Eksekutif"]
+    ws_det = wb["Detail Program Studi"]
+
+    assert ws_sum["C6"].value == "KampusAman"
+    assert str(ws_sum["C7"].value).startswith("'")
+    assert str(ws_det.cell(row=2, column=2).value).startswith("'")
+    assert str(ws_det.cell(row=2, column=3).value).startswith("'")
+    assert "\x00" not in str(ws_det.cell(row=2, column=3).value)
+    wb.close()
+
+

@@ -139,3 +139,91 @@ def test_sinta_service_null_nested_fields_and_wos():
         assert author.scores.overall == 0.0
         assert author.bidang_keahlian == []
 
+
+def test_pddikti_service_handles_inf_nan_and_rich_prodi_pt_fields():
+    import httpx
+    from pddikti_sdk.models import BidangStudi, JenjangStudi
+    from pddikti_sdk.services.pddikti import PDDiktiService
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if "/v2/detail_pt/" in url:
+            return httpx.Response(
+                200,
+                json={
+                    "nama_pt": "Institut Teknologi Uji",
+                    "kode_pt": "001002",
+                    "wilayah": "LLDIKTI Wilayah IV",
+                    "akreditasi": "Unggul",
+                    "jml_mhs": "inf",
+                    "jml_dosen": "nan",
+                },
+            )
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "id_sms": "P1",
+                    "kode_prodi": "55201",
+                    "nm_lemb": "Teknik Informatika",
+                    "jenjang": "S2",
+                    "akreditasi": "Baik Sekali",
+                    "jml_dosen": 10,
+                    "jml_mhs": 150,
+                },
+                {
+                    "id_sms": "P2",
+                    "kode_prodi": "61201",
+                    "nm_lemb": "Ilmu Hukum",
+                    "nm_jenj_didik": "Sarjana Terapan",
+                    "jml_dosen": "inf",
+                    "jml_mhs": -20,
+                },
+            ],
+        )
+
+    client = httpx.Client(base_url="https://api-frontend.kemdikbud.go.id", transport=httpx.MockTransport(handler))
+    svc = PDDiktiService(client, cache=None)
+
+    pt = svc.get_detail_pt("PT123", use_cache=False)
+    assert pt.total_mahasiswa_aktif == 0
+    assert pt.total_dosen_tetap == 0
+    assert pt.wilayah == "LLDIKTI Wilayah IV"
+    assert pt.akreditasi is not None
+    assert pt.akreditasi.peringkat == PeringkatAkreditasi.UNGGUL
+
+    prodis = svc.get_prodi_list("PT123", use_cache=False)
+    assert len(prodis) == 2
+    assert prodis[0].jenjang == JenjangStudi.S2
+    assert prodis[0].bidang == BidangStudi.EKSAKTA
+    assert prodis[0].akreditasi is not None
+    assert prodis[0].akreditasi.peringkat == PeringkatAkreditasi.BAIK_SEKALI
+
+    assert prodis[1].jenjang == JenjangStudi.D4
+    assert prodis[1].bidang == BidangStudi.NON_EKSAKTA
+    assert prodis[1].jumlah_dosen == 0
+    assert prodis[1].jumlah_mahasiswa_aktif == 0
+
+
+def test_sinta_service_validates_url_and_handles_nan_inf():
+    import math
+    from pddikti_sdk.exceptions import ValidationError
+
+    with pytest.raises(ValidationError):
+        SintaService(base_url="file:///etc/passwd")
+
+    with SintaService() as service:
+        author = service.parse_author_data({
+            "id": "100",
+            "fullname": "Dr. Edge",
+            "affiliation_name": "UGM",
+            "scores": {"overall": "nan", "three_years": "inf"},
+            "scopus": {"h_index": "inf", "citations": -5, "documents": "nan"},
+        })
+        assert math.isfinite(author.scores.overall) and author.scores.overall == 0.0
+        assert math.isfinite(author.scores.three_years) and author.scores.three_years == 0.0
+        assert author.scopus.h_index == 0
+        assert author.scopus.citations == 0
+        assert author.scopus.documents == 0
+
+

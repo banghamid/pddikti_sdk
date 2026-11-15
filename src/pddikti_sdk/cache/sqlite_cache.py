@@ -143,7 +143,12 @@ class SQLiteCache:
         """
         now = time.time()
         durasi = ttl if ttl is not None else self.default_ttl
-        expires_at = (now + durasi) if durasi > 0 else 0.0
+        if durasi == 0:
+            expires_at = 0.0
+        elif durasi > 0:
+            expires_at = now + durasi
+        else:
+            expires_at = max(1.0, now + durasi)
         val_str = json.dumps(value, ensure_ascii=False)
 
         with self._lock:
@@ -252,3 +257,9 @@ class SQLiteCache:
             except Exception:
                 pass
             self._shared_conn = None
+
+    def __enter__(self) -> "SQLiteCache":
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()

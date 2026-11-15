@@ -82,3 +82,17 @@ def test_client_with_custom_cache(tmp_path):
         # Verifikasi statistik cache hit meningkat
         stats = client.cache_stats()
         assert stats["hits"] >= 1
+
+
+def test_sqlite_cache_negative_ttl_expires_and_context_manager():
+    with SQLiteCache(db_path=":memory:") as cache:
+        # TTL negatif harus langsung kedaluwarsa, bukan menjadi permanen
+        cache.set("neg_key", "kadaluwarsa", ttl=-5)
+        assert cache.get("neg_key") is None
+
+        # TTL == 0 tetap permanen
+        cache.set("perm_key", "permanen", ttl=0)
+        assert cache.get("perm_key") == "permanen"
+
+    assert cache._shared_conn is None
+

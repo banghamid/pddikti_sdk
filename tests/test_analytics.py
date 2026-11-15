@@ -126,3 +126,57 @@ def test_ratio_analyzer_exact_ideal_deficit_needed():
     assert laporan.status == StatusKepatuhanRasio.DEFISIT_DOSEN
     assert "minimal 10 dosen" in laporan.rekomendasi
 
+
+def test_ratio_analyzer_negative_values_no_zero_division():
+    prodi_zero_neg = ProgramStudi(
+        kode="99",
+        nama_prodi="Prodi Korup",
+        jenjang=JenjangStudi.S1,
+        bidang=BidangStudi.EKSAKTA,
+        dosen_count=0,
+        mahasiswa_count=-5,
+    )
+    laporan = RatioAnalyzer.evaluasi_prodi(prodi_zero_neg)
+    assert laporan.status == StatusKepatuhanRasio.TIDAK_ADA_DATA
+    assert laporan.rasio_aktual == 0.0
+
+    prodi_neg_dosen = ProgramStudi(
+        kode="98",
+        nama_prodi="Prodi Negatif",
+        jenjang=JenjangStudi.S1,
+        bidang=BidangStudi.NON_EKSAKTA,
+        dosen_count=-2,
+        mahasiswa_count=10,
+    )
+    laporan2 = RatioAnalyzer.evaluasi_prodi(prodi_neg_dosen)
+    assert laporan2.status == StatusKepatuhanRasio.TIDAK_ADA_DATA
+    assert laporan2.rasio_aktual == 0.0
+
+
+def test_data_aggregator_empty_sinta_and_wilayah_whitespace():
+    rekap_kosong = DataAggregator.ringkas_produktivitas_sinta([])
+    expected_keys = {
+        "total_author",
+        "total_scopus_documents",
+        "total_scopus_citations",
+        "total_scholar_citations",
+        "total_paten_terdaftar",
+        "rata_rata_skor_3tahun",
+        "h_index_scopus_tertinggi",
+    }
+    assert expected_keys.issubset(rekap_kosong.keys())
+    assert rekap_kosong["total_author"] == 0
+    assert rekap_kosong["total_scopus_documents"] == 0
+    assert rekap_kosong["rata_rata_skor_3tahun"] == 0.0
+
+    pt1 = PerguruanTinggi(kode="1", nama_pt="PT 1", provinsi=" Jawa Barat ", total_mahasiswa_aktif=100, total_dosen_tetap=10)
+    pt2 = PerguruanTinggi(kode="2", nama_pt="PT 2", provinsi="Jawa Barat", total_mahasiswa_aktif=100, total_dosen_tetap=10)
+    pt3 = PerguruanTinggi(kode="3", nama_pt="PT 3", provinsi="   ", total_mahasiswa_aktif=50, total_dosen_tetap=5)
+
+    wilayah_rekap = DataAggregator.ringkas_sebaran_wilayah([pt1, pt2, pt3])
+    assert "Jawa Barat" in wilayah_rekap
+    assert wilayah_rekap["Jawa Barat"]["jumlah_pt"] == 2
+    assert "Lainnya" in wilayah_rekap
+    assert wilayah_rekap["Lainnya"]["jumlah_pt"] == 1
+
+

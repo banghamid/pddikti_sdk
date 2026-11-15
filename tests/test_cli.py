@@ -74,3 +74,73 @@ def test_cli_cache_commands(monkeypatch, tmp_path, capsys):
     assert "deleted" in res
 
 
+def test_cli_table_sanitizes_ansi_and_newlines(capsys):
+    print_table(
+        ["ID", "Nama"],
+        [["1", "\x1b[31mEvil\x1b[0m\r\nRow"]],
+        title="Tabel\x1b[2JAman",
+    )
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    assert "Evil Row" in out
+
+
+def test_cli_ratio_json_with_export_and_error_exit(monkeypatch, tmp_path, capsys):
+    from pddikti_sdk.client import PDDiktiClient
+    from pddikti_sdk.models import BidangStudi, JenjangStudi, PerguruanTinggi, ProgramStudi
+
+    sample_pt = PerguruanTinggi(
+        kode="001001",
+        nama_pt="Universitas CLI",
+        daftar_prodi=[
+            ProgramStudi(
+                kode="55201",
+                nama_prodi="Informatika",
+                jenjang=JenjangStudi.S1,
+                bidang=BidangStudi.EKSAKTA,
+                dosen_count=10,
+                mahasiswa_count=200,
+            )
+        ],
+    )
+    monkeypatch.setattr(PDDiktiClient, "get_perguruan_tinggi", lambda self, id_pt, include_prodi=True, use_cache=True: sample_pt)
+    monkeypatch.setattr(PDDiktiClient, "DEFAULT_CACHE_FILE", str(tmp_path / "cli_ratio.db"))
+
+    out_xlsx = tmp_path / "rasio_cli.xlsx"
+    ret = main(["ratio", "PT123", "--json", "--export", str(out_xlsx)])
+    assert ret == 0
+    assert out_xlsx.exists()
+    data = json.loads(capsys.readouterr().out)
+    assert data["kode_pt"] == "001001"
+
+    # Jika export gagal, exit code harus 1
+    def _fail_export(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("pddikti_sdk.cli.export_laporan_rasio_excel", _fail_export)
+    ret_err = main(["ratio", "PT123", "--json", "--export", str(out_xlsx)])
+    assert ret_err == 1
+
+
+def test_cli_search_negative_limit(monkeypatch, tmp_path, capsys):
+    from pddikti_sdk.client import PDDiktiClient
+    from pddikti_sdk.models import EntityType, SearchHitItem, SearchResult
+
+    fake_result = SearchResult(
+        keyword="UI",
+        perguruan_tinggi=[
+            SearchHitItem(id="1", text="UI Satu", entity_type=EntityType.PT),
+            SearchHitItem(id="2", text="UI Dua", entity_type=EntityType.PT),
+        ],
+    )
+    monkeypatch.setattr(PDDiktiClient, "search", lambda self, kw, use_cache=True: fake_result)
+    monkeypatch.setattr(PDDiktiClient, "DEFAULT_CACHE_FILE", str(tmp_path / "cli_search.db"))
+
+    ret = main(["search", "UI", "--limit", "-1"])
+    assert ret == 0
+    out = capsys.readouterr().out
+    assert "UI Satu" not in out
+    assert "UI Dua" not in out
+
+
+

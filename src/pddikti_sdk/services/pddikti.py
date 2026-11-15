@@ -13,11 +13,45 @@ from pddikti_sdk.exceptions import (
     ValidationError,
 )
 from pddikti_sdk.models.common import EntityType, SearchHitItem, SearchResult
-from pddikti_sdk.models.perguruan_tinggi import BentukPendidikan, PerguruanTinggi, ProgramStudi, StatusPT
+from pddikti_sdk.models.perguruan_tinggi import (
+    BentukPendidikan,
+    BidangStudi,
+    JenjangStudi,
+    PerguruanTinggi,
+    ProgramStudi,
+    StatusPT,
+)
 from pddikti_sdk.models.sdm import Dosen, Mahasiswa
+from pddikti_sdk.services.banpt import BanptService
+from pddikti_sdk.services.sinta import _safe_int
 
 # Pola aman untuk ID entitas PDDikti (base64url / hash / kode numerik, tanpa path traversal)
 _SAFE_ENTITY_ID_RE = re.compile(r"^[A-Za-z0-9_\-=]{1,256}$")
+
+_EKSAKTA_KEYWORDS = (
+    "teknik",
+    "informatika",
+    "komputer",
+    "sistem informasi",
+    "kedokteran",
+    "kesehatan",
+    "keperawatan",
+    "kebidanan",
+    "farmasi",
+    "matematika",
+    "fisika",
+    "kimia",
+    "biologi",
+    "statistika",
+    "arsitektur",
+    "pertanian",
+    "peternakan",
+    "kehutanan",
+    "kelautan",
+    "perikanan",
+    "gizi",
+    "sains",
+)
 
 
 def _validate_entity_id(raw_id: str, field_name: str = "id_pt") -> str:
@@ -30,14 +64,58 @@ def _validate_entity_id(raw_id: str, field_name: str = "id_pt") -> str:
     return clean_id
 
 
-def _safe_int(val: Any, default: int = 0) -> int:
-    """Konversi nilai ke int secara aman tanpa melempar ValueError/TypeError."""
-    if val is None or isinstance(val, bool):
-        return default
-    try:
-        return int(float(val))
-    except (ValueError, TypeError):
-        return default
+def _parse_jenjang(raw: Any) -> JenjangStudi:
+    """Menormalkan label jenjang pendidikan PDDikti ke enum JenjangStudi."""
+    if isinstance(raw, JenjangStudi):
+        return raw
+    if not raw or not str(raw).strip():
+        return JenjangStudi.S1
+
+    clean = str(raw).strip().upper()
+    if "D4" in clean or "D-IV" in clean or "DIV" in clean or "SARJANA TERAPAN" in clean:
+        return JenjangStudi.D4
+    if "S2 TERAPAN" in clean or "MAGISTER TERAPAN" in clean:
+        return JenjangStudi.S2_TERAPAN
+    if "S3 TERAPAN" in clean or "DOKTOR TERAPAN" in clean:
+        return JenjangStudi.S3_TERAPAN
+    if "SPESIALIS-2" in clean or "SPESIALIS 2" in clean or "SP-2" in clean or "SP2" in clean or "SUBSPESIALIS" in clean:
+        return JenjangStudi.SPESIALIS_2
+    if "SPESIALIS" in clean or "SP-1" in clean or "SP1" in clean:
+        return JenjangStudi.SPESIALIS_1
+    if "PROFESI" in clean:
+        return JenjangStudi.PROFESI
+    if "D1" in clean or "D-I" in clean or "DIPLOMA I" in clean:
+        return JenjangStudi.D1
+    if "D2" in clean or "D-II" in clean or "DIPLOMA II" in clean:
+        return JenjangStudi.D2
+    if "D3" in clean or "D-III" in clean or "DIPLOMA III" in clean:
+        return JenjangStudi.D3
+    if "S2" in clean or "MAGISTER" in clean or "PASCASARJANA" in clean:
+        return JenjangStudi.S2
+    if "S3" in clean or "DOKTOR" in clean:
+        return JenjangStudi.S3
+    if "S1" in clean or "SARJANA" in clean:
+        return JenjangStudi.S1
+    return JenjangStudi.LAINNYA
+
+
+def _infer_bidang_studi(nama_prodi: str, raw_bidang: Any = None) -> BidangStudi:
+    """Menentukan rumpun BidangStudi dari payload eksplisit atau kata kunci nama prodi."""
+    if isinstance(raw_bidang, BidangStudi):
+        return raw_bidang
+    if raw_bidang and str(raw_bidang).strip():
+        clean = str(raw_bidang).strip().upper()
+        if "CAMPURAN" in clean:
+            return BidangStudi.CAMPURAN
+        if "NON" in clean or "SOSIAL" in clean or "HUMANIORA" in clean or "SENI" in clean:
+            return BidangStudi.NON_EKSAKTA
+        if "EKSAKTA" in clean or "TEKNIK" in clean or "KESEHATAN" in clean:
+            return BidangStudi.EKSAKTA
+
+    nama_lower = (nama_prodi or "").lower()
+    if any(kw in nama_lower for kw in _EKSAKTA_KEYWORDS):
+        return BidangStudi.EKSAKTA
+    return BidangStudi.NON_EKSAKTA
 
 
 def _parse_search_payload(keyword: str, data: Any) -> SearchResult:
@@ -76,17 +154,21 @@ def _parse_pt_payload(id_pt: str, data: Any) -> PerguruanTinggi:
         pt_info = {}
     nama = pt_info.get("nama_pt") or pt_info.get("nm_lemb", "Unknown PT")
     kode = pt_info.get("kode_pt") or pt_info.get("npsn", id_pt)
+    has_akreditasi = any(pt_info.get(k) for k in ("akreditasi", "peringkat", "status_akreditasi"))
+    akreditasi = BanptService.parse_akreditasi_info(pt_info) if has_akreditasi else None
 
     return PerguruanTinggi(
         id=id_pt,
         kode=str(kode),
         nama_pt=str(nama),
         singkatan=pt_info.get("singkatan"),
+        wilayah=pt_info.get("wilayah") or pt_info.get("lldikti"),
         provinsi=pt_info.get("propinsi") or pt_info.get("provinsi"),
         kab_kota=pt_info.get("kab_kota"),
         status_kepemilikan=pt_info.get("status_milik") or "Swasta",
-        total_mahasiswa_aktif=_safe_int(pt_info.get("jml_mhs"), 0),
-        total_dosen_tetap=_safe_int(pt_info.get("jml_dosen"), 0),
+        akreditasi=akreditasi,
+        total_mahasiswa_aktif=_safe_int(pt_info.get("jml_mhs"), 0, min_value=0),
+        total_dosen_tetap=_safe_int(pt_info.get("jml_dosen"), 0, min_value=0),
     )
 
 
@@ -103,13 +185,22 @@ def _parse_prodi_payload(data: Any) -> List[ProgramStudi]:
     for item in raw_items:
         if not isinstance(item, dict):
             continue
+        nama_prodi = str(item.get("nm_lemb") or item.get("nama_prodi") or "Unknown Prodi")
+        jenjang = _parse_jenjang(item.get("jenjang") or item.get("nm_jenj_didik") or item.get("namajenjang"))
+        bidang = _infer_bidang_studi(nama_prodi, item.get("bidang"))
+        has_akreditasi = any(item.get(k) for k in ("akreditasi", "peringkat", "status_akreditasi"))
+        akreditasi = BanptService.parse_akreditasi_info(item) if has_akreditasi else None
+
         p = ProgramStudi(
             id_prodi=item.get("id_sms") or item.get("id"),
             kode=str(item.get("kode_prodi") or item.get("kode") or "-"),
-            nama_prodi=str(item.get("nm_lemb") or item.get("nama_prodi") or "Unknown Prodi"),
+            nama_prodi=nama_prodi,
+            jenjang=jenjang,
+            bidang=bidang,
+            akreditasi=akreditasi,
             status=str(item.get("stat_prodi") or "Aktif"),
-            dosen_count=_safe_int(item.get("jml_dosen"), 0),
-            mahasiswa_count=_safe_int(item.get("jml_mhs"), 0),
+            dosen_count=_safe_int(item.get("jml_dosen"), 0, min_value=0),
+            mahasiswa_count=_safe_int(item.get("jml_mhs"), 0, min_value=0),
         )
         prodi_list.append(p)
     return prodi_list

@@ -6,6 +6,7 @@ evaluasi rasio dosen-mahasiswa BAN-PT, verifikasi akreditasi, dan ringkasan metr
 
 import argparse
 import json
+import re
 import sys
 from typing import Any, List, Optional
 
@@ -24,29 +25,41 @@ from pddikti_sdk import (
 )
 
 
+_ANSI_ESCAPE_RE = re.compile(r"\x1b(?:\[[0-9;?]*[ -/]*[@-~]|[@-Z\\-_])")
+
+
+def _sanitize_terminal_text(val: Any) -> str:
+    """Membersihkan urutan escape ANSI dan kontrol baris baru sebelum mencetak ke terminal."""
+    text = _ANSI_ESCAPE_RE.sub("", str(val))
+    return text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ").replace("\t", " ")
+
+
 def print_table(headers: List[str], rows: List[List[str]], title: Optional[str] = None) -> None:
     """Mencetak tabel rapi ke konsol terminal tanpa dependensi eksternal."""
     if title:
-        print(f"\n=== {title} ===")
+        print(f"\n=== {_sanitize_terminal_text(title)} ===")
 
     if not rows:
         print("(Tidak ada data)")
         return
 
-    col_widths = [len(h) for h in headers]
-    for row in rows:
+    safe_headers = [_sanitize_terminal_text(h) for h in headers]
+    safe_rows = [[_sanitize_terminal_text(val) for val in row] for row in rows]
+
+    col_widths = [len(h) for h in safe_headers]
+    for row in safe_rows:
         for i, val in enumerate(row):
             if i < len(col_widths):
-                col_widths[i] = max(col_widths[i], len(str(val)))
+                col_widths[i] = max(col_widths[i], len(val))
 
     # Header row
-    header_str = " | ".join(f"{h.ljust(col_widths[i])}" for i, h in enumerate(headers))
-    sep_str = "-+-".join("-" * col_widths[i] for i in range(len(headers)))
+    header_str = " | ".join(f"{h.ljust(col_widths[i])}" for i, h in enumerate(safe_headers))
+    sep_str = "-+-".join("-" * col_widths[i] for i in range(len(safe_headers)))
 
     print(header_str)
     print(sep_str)
-    for row in rows:
-        row_str = " | ".join(f"{str(val).ljust(col_widths[i])}" for i, val in enumerate(row))
+    for row in safe_rows:
+        row_str = " | ".join(f"{val.ljust(col_widths[i])}" for i, val in enumerate(row))
         print(row_str)
     print()
 
@@ -75,25 +88,27 @@ def handle_search(args: argparse.Namespace) -> int:
 
     print(f"Total hasil ditemukan: {result.total_hits}\n")
 
+    limit = max(0, args.limit)
+
     # Tabel Perguruan Tinggi
     if result.perguruan_tinggi and args.category in ("all", "pt"):
-        pt_rows = [[item.id or "-", item.text] for item in result.perguruan_tinggi[: args.limit]]
-        print_table(["ID / Hash", "Perguruan Tinggi"], pt_rows, title=f"Perguruan Tinggi (Max {args.limit})")
+        pt_rows = [[item.id or "-", item.text] for item in result.perguruan_tinggi[:limit]]
+        print_table(["ID / Hash", "Perguruan Tinggi"], pt_rows, title=f"Perguruan Tinggi (Max {limit})")
 
     # Tabel Program Studi
     if result.program_studi and args.category in ("all", "prodi"):
-        prodi_rows = [[item.id or "-", item.text] for item in result.program_studi[: args.limit]]
-        print_table(["ID / Hash", "Program Studi"], prodi_rows, title=f"Program Studi (Max {args.limit})")
+        prodi_rows = [[item.id or "-", item.text] for item in result.program_studi[:limit]]
+        print_table(["ID / Hash", "Program Studi"], prodi_rows, title=f"Program Studi (Max {limit})")
 
     # Tabel Dosen
     if result.dosen and args.category in ("all", "dosen"):
-        dosen_rows = [[item.id or "-", item.text] for item in result.dosen[: args.limit]]
-        print_table(["ID / Hash", "Nama Dosen"], dosen_rows, title=f"Dosen (Max {args.limit})")
+        dosen_rows = [[item.id or "-", item.text] for item in result.dosen[:limit]]
+        print_table(["ID / Hash", "Nama Dosen"], dosen_rows, title=f"Dosen (Max {limit})")
 
     # Tabel Mahasiswa
     if result.mahasiswa and args.category in ("all", "mahasiswa"):
-        mhs_rows = [[item.id or "-", item.text] for item in result.mahasiswa[: args.limit]]
-        print_table(["ID / Hash", "Mahasiswa"], mhs_rows, title=f"Mahasiswa (Max {args.limit})")
+        mhs_rows = [[item.id or "-", item.text] for item in result.mahasiswa[:limit]]
+        print_table(["ID / Hash", "Mahasiswa"], mhs_rows, title=f"Mahasiswa (Max {limit})")
 
     return 0
 
@@ -166,6 +181,16 @@ def handle_ratio(args: argparse.Namespace) -> int:
         print(f"Gagal menganalisis rasio PT: {e}")
         return 1
 
+    export_target = getattr(args, "export", None)
+    excel_path = None
+    if export_target:
+        try:
+            excel_path = export_laporan_rasio_excel(laporan, export_target)
+        except Exception as e:
+            target_stream = sys.stderr if args.json else sys.stdout
+            print(f"\n[GAGAL] Gagal mengekspor laporan Excel: {e}", file=target_stream)
+            return 1
+
     if args.json:
         print(json.dumps(laporan.model_dump(), indent=2, ensure_ascii=False))
         return 0
@@ -197,12 +222,8 @@ def handle_ratio(args: argparse.Namespace) -> int:
         ]
         print_table(["Kode", "Program Studi", "Dosen", "Mhs", "Rasio"], rows)
 
-    if getattr(args, "export", None):
-        try:
-            excel_path = export_laporan_rasio_excel(laporan, args.export)
-            print(f"\n[SUKSES] Laporan Excel berhasil disimpan di: {excel_path}")
-        except Exception as e:
-            print(f"\n[GAGAL] Gagal mengekspor laporan Excel: {e}")
+    if excel_path is not None:
+        print(f"\n[SUKSES] Laporan Excel berhasil disimpan di: {excel_path}")
 
     return 0
 

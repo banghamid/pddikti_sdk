@@ -13,7 +13,7 @@ class DataAggregator:
         """Meringkas jumlah PT, total mahasiswa, dan dosen per provinsi/wilayah."""
         rekap: Dict[str, Dict[str, Any]] = {}
         for pt in daftar_pt:
-            wilayah = pt.provinsi or pt.wilayah or "Lainnya"
+            wilayah = (pt.provinsi or pt.wilayah or "").strip() or "Lainnya"
             if wilayah not in rekap:
                 rekap[wilayah] = {
                     "jumlah_pt": 0,
@@ -38,7 +38,15 @@ class DataAggregator:
     def ringkas_produktivitas_sinta(authors: List[SintaAuthor]) -> Dict[str, Any]:
         """Meringkas metrik produktivitas riset dari sekumpulan dosen/peneliti."""
         if not authors:
-            return {"total_author": 0}
+            return {
+                "total_author": 0,
+                "total_scopus_documents": 0,
+                "total_scopus_citations": 0,
+                "total_scholar_citations": 0,
+                "total_paten_terdaftar": 0,
+                "rata_rata_skor_3tahun": 0.0,
+                "h_index_scopus_tertinggi": 0,
+            }
 
         total_scopus_docs = sum(a.scopus.documents for a in authors)
         total_scopus_cits = sum(a.scopus.citations for a in authors)

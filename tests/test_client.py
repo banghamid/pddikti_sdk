@@ -59,3 +59,36 @@ def test_async_client_parity_methods(tmp_path):
 
     asyncio.run(_runner())
 
+
+def test_client_validates_url_and_timeout():
+    from pddikti_sdk.exceptions import ValidationError
+
+    for bad_url in ["file:///etc/passwd", "ftp://example.com", "javascript:alert(1)", "not-a-url", "https://"]:
+        with pytest.raises(ValidationError):
+            PDDiktiClient(base_url=bad_url, cache=False)
+        with pytest.raises(ValidationError):
+            AsyncPDDiktiClient(base_url=bad_url, cache=False)
+
+    with pytest.raises(ValidationError):
+        PDDiktiClient(sinta_base_url="file:///tmp", cache=False)
+
+    for bad_timeout in [0, -5.0, float("nan"), float("inf")]:
+        with pytest.raises(ValidationError):
+            PDDiktiClient(timeout=bad_timeout, cache=False)
+        with pytest.raises(ValidationError):
+            AsyncPDDiktiClient(timeout=bad_timeout, cache=False)
+
+
+def test_async_client_has_sinta_subservice():
+    async def _runner():
+        async with AsyncPDDiktiClient(
+            base_url="https://async.example.com",
+            sinta_base_url="https://sinta.example.com/",
+            cache=False,
+        ) as client:
+            assert client.sinta is not None
+            assert client.sinta.base_url == "https://sinta.example.com"
+
+    asyncio.run(_runner())
+
+

@@ -1,18 +1,42 @@
 """Client utama terpadu untuk pengaksesan data PDDikti, SINTA, akreditasi BAN-PT, dan cache SQLite."""
 
+import math
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 import httpx
 
 from pddikti_sdk.analytics.aggregator import DataAggregator
 from pddikti_sdk.analytics.excel_exporter import export_laporan_rasio_excel
 from pddikti_sdk.analytics.ratio import LaporanRasioPT, LaporanRasioProdi, RatioAnalyzer
 from pddikti_sdk.cache.sqlite_cache import SQLiteCache
+from pddikti_sdk.exceptions import ValidationError
 from pddikti_sdk.models.common import SearchResult
 from pddikti_sdk.models.perguruan_tinggi import PerguruanTinggi, ProgramStudi
 from pddikti_sdk.services.banpt import BanptService
 from pddikti_sdk.services.pddikti import AsyncPDDiktiService, PDDiktiService
-from pddikti_sdk.services.sinta import SintaService
+from pddikti_sdk.services.sinta import SintaService, _validate_http_url
+
+
+def _validate_timeout(timeout: float) -> float:
+    """Memvalidasi bahwa timeout adalah angka finite positif (> 0)."""
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
+        raise ValidationError(f"Parameter 'timeout' harus bernilai positif (> 0), bukan {timeout!r}")
+    return float(timeout)
+
+
+def _init_cache_instance(
+    cache: Union[SQLiteCache, str, Path, bool, None],
+    default_cache_file: str,
+    default_ttl: int,
+) -> Tuple[Optional[SQLiteCache], bool]:
+    """Menginisialisasi instance SQLiteCache bersama flag kepemilikan."""
+    if isinstance(cache, SQLiteCache):
+        return cache, False
+    if cache is True:
+        return SQLiteCache(db_path=default_cache_file, default_ttl=default_ttl), True
+    if isinstance(cache, (str, Path)):
+        return SQLiteCache(db_path=cache, default_ttl=default_ttl), True
+    return None, False
 
 
 class PDDiktiClient:
@@ -36,21 +60,12 @@ class PDDiktiClient:
         cache: Union[SQLiteCache, str, Path, bool, None] = True,
         default_ttl: int = 86400,
     ) -> None:
-        self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
-        self.timeout = timeout
+        raw_base_url = self.DEFAULT_BASE_URL if base_url is None else base_url
+        self.base_url = _validate_http_url(raw_base_url, "base_url")
+        self.timeout = _validate_timeout(timeout)
 
         # Inisialisasi Cache SQLite
-        self._owns_cache = False
-        if isinstance(cache, SQLiteCache):
-            self.cache: Optional[SQLiteCache] = cache
-        elif cache is True:
-            self.cache = SQLiteCache(db_path=self.DEFAULT_CACHE_FILE, default_ttl=default_ttl)
-            self._owns_cache = True
-        elif isinstance(cache, (str, Path)):
-            self.cache = SQLiteCache(db_path=cache, default_ttl=default_ttl)
-            self._owns_cache = True
-        else:
-            self.cache = None
+        self.cache, self._owns_cache = _init_cache_instance(cache, self.DEFAULT_CACHE_FILE, default_ttl)
 
         default_headers = {
             "User-Agent": "pddikti-sdk/0.2.0 (Python Educational Research Client)",
@@ -176,23 +191,15 @@ class AsyncPDDiktiClient:
         base_url: Optional[str] = None,
         timeout: float = 30.0,
         headers: Optional[Dict[str, str]] = None,
+        sinta_base_url: Optional[str] = None,
         cache: Union[SQLiteCache, str, Path, bool, None] = True,
         default_ttl: int = 86400,
     ) -> None:
-        self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
-        self.timeout = timeout
+        raw_base_url = self.DEFAULT_BASE_URL if base_url is None else base_url
+        self.base_url = _validate_http_url(raw_base_url, "base_url")
+        self.timeout = _validate_timeout(timeout)
 
-        self._owns_cache = False
-        if isinstance(cache, SQLiteCache):
-            self.cache: Optional[SQLiteCache] = cache
-        elif cache is True:
-            self.cache = SQLiteCache(db_path=self.DEFAULT_CACHE_FILE, default_ttl=default_ttl)
-            self._owns_cache = True
-        elif isinstance(cache, (str, Path)):
-            self.cache = SQLiteCache(db_path=cache, default_ttl=default_ttl)
-            self._owns_cache = True
-        else:
-            self.cache = None
+        self.cache, self._owns_cache = _init_cache_instance(cache, self.DEFAULT_CACHE_FILE, default_ttl)
 
         default_headers = {
             "User-Agent": "pddikti-sdk/0.2.0 (Async Python Educational Research Client)",
@@ -207,12 +214,14 @@ class AsyncPDDiktiClient:
             timeout=self.timeout,
         )
         self._pddikti_service = AsyncPDDiktiService(self._http_client, cache=self.cache)
+        self.sinta = SintaService(base_url=sinta_base_url)
         self.banpt = BanptService()
         self.analytics = RatioAnalyzer()
         self.aggregator = DataAggregator()
 
     async def close(self) -> None:
         await self._http_client.aclose()
+        self.sinta.close()
         if self._owns_cache and self.cache is not None:
             self.cache.close()
 

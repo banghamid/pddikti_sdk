@@ -73,7 +73,11 @@ class RatioAnalyzer:
         mhs = prodi.jumlah_mahasiswa_aktif
         bidang = prodi.bidang
 
-        if dosen == 0 and mhs == 0:
+        if dosen < 0 or mhs < 0:
+            status = StatusKepatuhanRasio.TIDAK_ADA_DATA
+            rekomendasi = "Data dosen atau mahasiswa aktif tidak valid (bernilai negatif)."
+            rasio = 0.0
+        elif dosen == 0 and mhs == 0:
             status = StatusKepatuhanRasio.TIDAK_ADA_DATA
             rekomendasi = "Data dosen dan mahasiswa aktif tercatat 0."
             rasio = 0.0
