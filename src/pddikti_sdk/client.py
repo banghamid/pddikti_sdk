@@ -24,6 +24,20 @@ def _validate_timeout(timeout: float) -> float:
     return float(timeout)
 
 
+def _validate_headers(headers: Optional[Dict[str, str]]) -> Dict[str, str]:
+    """Memvalidasi header HTTP kustom agar bebas dari CRLF/null-byte injection."""
+    if not headers:
+        return {}
+    clean: Dict[str, str] = {}
+    for k, v in headers.items():
+        ks = str(k)
+        vs = str(v)
+        if any(c in ks for c in ("\r", "\n", "\x00")) or any(c in vs for c in ("\r", "\n", "\x00")):
+            raise ValidationError(f"Header HTTP mengandung karakter kontrol terlarang: {ks!r}")
+        clean[ks] = vs
+    return clean
+
+
 def _init_cache_instance(
     cache: Union[SQLiteCache, str, Path, bool, None],
     default_cache_file: str,
@@ -59,12 +73,22 @@ class PDDiktiClient:
         sinta_base_url: Optional[str] = None,
         cache: Union[SQLiteCache, str, Path, bool, None] = True,
         default_ttl: int = 86400,
+        allow_insecure_http: bool = False,
     ) -> None:
         raw_base_url = self.DEFAULT_BASE_URL if base_url is None else base_url
-        self.base_url = _validate_http_url(raw_base_url, "base_url")
+        self.base_url = _validate_http_url(
+            raw_base_url,
+            "base_url",
+            allow_insecure_http=allow_insecure_http,
+        )
         self.timeout = _validate_timeout(timeout)
         if sinta_base_url is not None:
-            _validate_http_url(sinta_base_url, "sinta_base_url")
+            _validate_http_url(
+                sinta_base_url,
+                "sinta_base_url",
+                allow_insecure_http=allow_insecure_http,
+            )
+        safe_headers = _validate_headers(headers)
 
         # Inisialisasi Cache SQLite
         self.cache, self._owns_cache = _init_cache_instance(cache, self.DEFAULT_CACHE_FILE, default_ttl)
@@ -73,18 +97,19 @@ class PDDiktiClient:
             "User-Agent": "pddikti-sdk/0.2.0 (Python Educational Research Client)",
             "Accept": "application/json",
         }
-        if headers:
-            default_headers.update(headers)
+        if safe_headers:
+            default_headers.update(safe_headers)
 
         self._http_client = httpx.Client(
             base_url=self.base_url,
             headers=default_headers,
             timeout=self.timeout,
+            follow_redirects=False,
         )
 
         # Inisialisasi submodule layanan
         self._pddikti_service = PDDiktiService(self._http_client, cache=self.cache)
-        self.sinta = SintaService(base_url=sinta_base_url)
+        self.sinta = SintaService(base_url=sinta_base_url, allow_insecure_http=allow_insecure_http)
         self.banpt = BanptService()
         self.analytics = RatioAnalyzer()
         self.aggregator = DataAggregator()
@@ -196,12 +221,22 @@ class AsyncPDDiktiClient:
         sinta_base_url: Optional[str] = None,
         cache: Union[SQLiteCache, str, Path, bool, None] = True,
         default_ttl: int = 86400,
+        allow_insecure_http: bool = False,
     ) -> None:
         raw_base_url = self.DEFAULT_BASE_URL if base_url is None else base_url
-        self.base_url = _validate_http_url(raw_base_url, "base_url")
+        self.base_url = _validate_http_url(
+            raw_base_url,
+            "base_url",
+            allow_insecure_http=allow_insecure_http,
+        )
         self.timeout = _validate_timeout(timeout)
         if sinta_base_url is not None:
-            _validate_http_url(sinta_base_url, "sinta_base_url")
+            _validate_http_url(
+                sinta_base_url,
+                "sinta_base_url",
+                allow_insecure_http=allow_insecure_http,
+            )
+        safe_headers = _validate_headers(headers)
 
         self.cache, self._owns_cache = _init_cache_instance(cache, self.DEFAULT_CACHE_FILE, default_ttl)
 
@@ -209,16 +244,17 @@ class AsyncPDDiktiClient:
             "User-Agent": "pddikti-sdk/0.2.0 (Async Python Educational Research Client)",
             "Accept": "application/json",
         }
-        if headers:
-            default_headers.update(headers)
+        if safe_headers:
+            default_headers.update(safe_headers)
 
         self._http_client = httpx.AsyncClient(
             base_url=self.base_url,
             headers=default_headers,
             timeout=self.timeout,
+            follow_redirects=False,
         )
         self._pddikti_service = AsyncPDDiktiService(self._http_client, cache=self.cache)
-        self.sinta = SintaService(base_url=sinta_base_url)
+        self.sinta = SintaService(base_url=sinta_base_url, allow_insecure_http=allow_insecure_http)
         self.banpt = BanptService()
         self.analytics = RatioAnalyzer()
         self.aggregator = DataAggregator()

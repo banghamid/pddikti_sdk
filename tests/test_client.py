@@ -94,3 +94,42 @@ def test_async_client_has_sinta_subservice():
     asyncio.run(_runner())
 
 
+def test_client_rejects_insecure_remote_http_and_ssrf_urls():
+    from pddikti_sdk.exceptions import ValidationError
+
+    # Remote cleartext HTTP harus ditolak secara default
+    with pytest.raises(ValidationError):
+        PDDiktiClient(base_url="http://api.example.com", cache=False)
+    with pytest.raises(ValidationError):
+        AsyncPDDiktiClient(base_url="http://api.example.com", cache=False)
+
+    # Jika diizinkan eksplisit, HTTP remote tetap bisa digunakan
+    with PDDiktiClient(base_url="http://api.example.com", allow_insecure_http=True, cache=False) as c:
+        assert c.base_url == "http://api.example.com"
+
+    # Loopback HTTP diizinkan untuk pengembangan lokal
+    with PDDiktiClient(base_url="http://localhost:8080", cache=False) as c_local:
+        assert c_local.base_url == "http://localhost:8080"
+
+    # Kredensial tertanam di URL dan IP metadata/link-local/unspecified harus ditolak (SSRF)
+    for dangerous_url in [
+        "https://user:secret@api.example.com",
+        "https://169.254.169.254/latest/meta-data",
+        "http://169.254.169.254",
+        "http://0.0.0.0:8000",
+    ]:
+        with pytest.raises(ValidationError):
+            PDDiktiClient(base_url=dangerous_url, cache=False)
+
+
+def test_client_rejects_crlf_in_headers():
+    from pddikti_sdk.exceptions import ValidationError
+
+    with pytest.raises(ValidationError):
+        PDDiktiClient(headers={"X-Custom": "val\r\nX-Injected: evil"}, cache=False)
+
+    with pytest.raises(ValidationError):
+        AsyncPDDiktiClient(headers={"Bad\nHeader": "val"}, cache=False)
+
+
+

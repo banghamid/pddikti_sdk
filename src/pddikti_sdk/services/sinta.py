@@ -1,5 +1,6 @@
 """Layanan pengaksesan dan integrasi data SINTA (Science and Technology Index)."""
 
+import ipaddress
 import math
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
@@ -18,16 +19,46 @@ from pddikti_sdk.models.sinta import (
 )
 
 
-def _validate_http_url(url: str, field_name: str = "base_url") -> str:
-    """Memvalidasi bahwa URL menggunakan skema HTTP/HTTPS yang valid dan memiliki host."""
+def _validate_http_url(
+    url: str,
+    field_name: str = "base_url",
+    allow_insecure_http: bool = False,
+) -> str:
+    """Memvalidasi URL HTTP/HTTPS terhadap skema tidak aman, kredensial tertanam, dan SSRF."""
     if not isinstance(url, str) or not url.strip():
         raise ValidationError(f"Parameter '{field_name}' tidak boleh kosong.")
     clean_url = url.strip().rstrip("/")
     parsed = urlparse(clean_url)
-    if parsed.scheme.lower() not in ("http", "https") or not parsed.netloc:
+    scheme = parsed.scheme.lower()
+    if scheme not in ("http", "https") or not parsed.netloc:
         raise ValidationError(
             f"Parameter '{field_name}' harus berupa URL HTTP/HTTPS yang valid: {url!r}"
         )
+    if parsed.username is not None or parsed.password is not None:
+        raise ValidationError(
+            f"Parameter '{field_name}' tidak boleh menyertakan kredensial pada URL."
+        )
+
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        raise ValidationError(f"Parameter '{field_name}' tidak memiliki hostname yang valid.")
+
+    try:
+        ip_obj = ipaddress.ip_address(hostname)
+        if ip_obj.is_link_local or ip_obj.is_multicast or ip_obj.is_unspecified:
+            raise ValidationError(
+                f"Parameter '{field_name}' mengarah ke alamat IP terlarang (SSRF/metadata): {hostname!r}"
+            )
+        is_loopback = ip_obj.is_loopback
+    except ValueError:
+        is_loopback = hostname in ("localhost", "localhost.localdomain") or hostname.endswith(".localhost")
+
+    if scheme == "http" and not is_loopback and not allow_insecure_http:
+        raise ValidationError(
+            f"Parameter '{field_name}' menggunakan HTTP tidak terenkripsi untuk host remote; "
+            "gunakan HTTPS atau set allow_insecure_http=True."
+        )
+
     return clean_url
 
 
@@ -67,9 +98,18 @@ class SintaService:
 
     DEFAULT_SINTA_URL = "https://sinta.kemdikbud.go.id"
 
-    def __init__(self, client: Optional[httpx.Client] = None, base_url: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        client: Optional[httpx.Client] = None,
+        base_url: Optional[str] = None,
+        allow_insecure_http: bool = False,
+    ) -> None:
         raw_url = self.DEFAULT_SINTA_URL if base_url is None else base_url
-        self.base_url = _validate_http_url(raw_url, "sinta_base_url")
+        self.base_url = _validate_http_url(
+            raw_url,
+            "sinta_base_url",
+            allow_insecure_http=allow_insecure_http,
+        )
         self._owns_client = client is None
         self._client = client or httpx.Client(
             base_url=self.base_url,
@@ -78,6 +118,7 @@ class SintaService:
                 "Accept": "application/json, text/html",
             },
             timeout=30.0,
+            follow_redirects=False,
         )
 
     def close(self) -> None:

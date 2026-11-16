@@ -227,3 +227,47 @@ def test_sinta_service_validates_url_and_handles_nan_inf():
         assert author.scopus.documents == 0
 
 
+def test_pddikti_service_dos_keyword_length_and_response_size_cap(monkeypatch):
+    import httpx
+    from pddikti_sdk.exceptions import APIConnectionError, ValidationError
+    from pddikti_sdk.services import pddikti as pddikti_mod
+    from pddikti_sdk.services.pddikti import PDDiktiService
+
+    # 1. Keyword terlalu panjang ditolak untuk mencegah URL/cache bloat
+    client = httpx.Client(
+        base_url="https://api-frontend.kemdikbud.go.id",
+        transport=httpx.MockTransport(lambda req: httpx.Response(200, json={})),
+    )
+    svc = PDDiktiService(client, cache=None)
+    with pytest.raises(ValidationError):
+        svc.search_all("a" * 300, use_cache=False)
+
+    # 2. Respons melebihi batas ukuran (DoS memori) harus ditolak
+    with monkeypatch.context() as mp:
+        mp.setattr(pddikti_mod, "MAX_RESPONSE_BYTES", 64)
+        big_client = httpx.Client(
+            base_url="https://api-frontend.kemdikbud.go.id",
+            transport=httpx.MockTransport(lambda req: httpx.Response(200, json={"pt": [{"id": "1", "text": "X" * 200}]})),
+        )
+        big_svc = PDDiktiService(big_client, cache=None)
+        with pytest.raises(APIConnectionError):
+            big_svc.search_all("UI", use_cache=False)
+
+    # 3. Error body dipotong agar tidak memicu information disclosure / memory bloat
+    err_client = httpx.Client(
+        base_url="https://api-frontend.kemdikbud.go.id",
+        transport=httpx.MockTransport(lambda req: httpx.Response(500, text="E" * 5000)),
+    )
+    err_svc = PDDiktiService(err_client, cache=None)
+    with pytest.raises(APIConnectionError) as exc_info:
+        err_svc.search_all("UI", use_cache=False)
+    assert len(exc_info.value.response_body) <= 2048
+
+    # 4. SintaService menolak cleartext HTTP remote kecuali allow_insecure_http=True
+    with pytest.raises(ValidationError):
+        SintaService(base_url="http://sinta.example.com")
+    with SintaService(base_url="http://sinta.example.com", allow_insecure_http=True) as sinta_http:
+        assert sinta_http.base_url == "http://sinta.example.com"
+
+
+

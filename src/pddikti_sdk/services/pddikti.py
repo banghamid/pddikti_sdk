@@ -27,6 +27,9 @@ from pddikti_sdk.services.sinta import _safe_int
 
 # Pola aman untuk ID entitas PDDikti (base64url / hash / kode numerik, tanpa path traversal)
 _SAFE_ENTITY_ID_RE = re.compile(r"^[A-Za-z0-9_\-=]{1,256}$")
+MAX_KEYWORD_LENGTH = 256
+MAX_RESPONSE_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_ERROR_BODY_CHARS = 2048
 
 _EKSAKTA_KEYWORDS = (
     "teknik",
@@ -206,15 +209,34 @@ def _parse_prodi_payload(data: Any) -> List[ProgramStudi]:
     return prodi_list
 
 
+def _validate_keyword(keyword: str) -> str:
+    """Memvalidasi kata kunci pencarian agar tidak kosong dan tidak melebihi batas panjang."""
+    clean_keyword = (keyword or "").strip()
+    if not clean_keyword:
+        raise ValidationError("Kata kunci pencarian tidak boleh kosong.")
+    if len(clean_keyword) > MAX_KEYWORD_LENGTH:
+        raise ValidationError(
+            f"Kata kunci pencarian melebihi batas maksimal {MAX_KEYWORD_LENGTH} karakter."
+        )
+    return clean_keyword
+
+
 def _handle_http_response(resp: httpx.Response, not_found_msg: Optional[str] = None) -> Any:
-    """Memeriksa kode status HTTP (404, 429, 4xx/5xx) dan mengurai JSON secara aman."""
+    """Memeriksa ukuran respons, kode status HTTP (404, 429, 4xx/5xx), dan mengurai JSON secara aman."""
+    if len(resp.content) > MAX_RESPONSE_BYTES:
+        raise APIConnectionError(
+            f"Ukuran respons PDDikti ({len(resp.content)} bytes) melebihi batas aman {MAX_RESPONSE_BYTES} bytes.",
+            status_code=resp.status_code,
+        )
+
+    safe_body = resp.text[:MAX_ERROR_BODY_CHARS]
     if resp.status_code == 404 and not_found_msg:
-        raise ResourceNotFoundError(not_found_msg, status_code=404, response_body=resp.text)
+        raise ResourceNotFoundError(not_found_msg, status_code=404, response_body=safe_body)
     if resp.status_code == 429:
         raise RateLimitError(
             "Kuota permintaan ke PDDikti melebihi batas (HTTP 429 Too Many Requests).",
             status_code=429,
-            response_body=resp.text,
+            response_body=safe_body,
         )
     try:
         resp.raise_for_status()
@@ -222,7 +244,7 @@ def _handle_http_response(resp: httpx.Response, not_found_msg: Optional[str] = N
         raise APIConnectionError(
             f"HTTP error dari PDDikti: {e}",
             status_code=e.response.status_code,
-            response_body=e.response.text,
+            response_body=safe_body,
         ) from e
 
     try:
@@ -231,7 +253,7 @@ def _handle_http_response(resp: httpx.Response, not_found_msg: Optional[str] = N
         raise APIConnectionError(
             f"Respons PDDikti bukan format JSON yang valid: {e}",
             status_code=resp.status_code,
-            response_body=resp.text,
+            response_body=safe_body,
         ) from e
 
 
@@ -247,9 +269,7 @@ class PDDiktiService:
 
     def search_all(self, keyword: str, use_cache: bool = True) -> SearchResult:
         """Pencarian agregat multi-entitas (PT, Prodi, Dosen, Mahasiswa)."""
-        clean_keyword = (keyword or "").strip()
-        if not clean_keyword:
-            raise ValidationError("Kata kunci pencarian tidak boleh kosong.")
+        clean_keyword = _validate_keyword(keyword)
 
         cache_key = f"search:{clean_keyword.lower()}"
 
@@ -343,9 +363,7 @@ class AsyncPDDiktiService:
 
     async def search_all(self, keyword: str, use_cache: bool = True) -> SearchResult:
         """Pencarian agregat multi-entitas asinkron."""
-        clean_keyword = (keyword or "").strip()
-        if not clean_keyword:
-            raise ValidationError("Kata kunci pencarian tidak boleh kosong.")
+        clean_keyword = _validate_keyword(keyword)
 
         cache_key = f"search:{clean_keyword.lower()}"
 
