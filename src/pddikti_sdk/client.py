@@ -63,6 +63,8 @@ class PDDiktiClient:
         raw_base_url = self.DEFAULT_BASE_URL if base_url is None else base_url
         self.base_url = _validate_http_url(raw_base_url, "base_url")
         self.timeout = _validate_timeout(timeout)
+        if sinta_base_url is not None:
+            _validate_http_url(sinta_base_url, "sinta_base_url")
 
         # Inisialisasi Cache SQLite
         self.cache, self._owns_cache = _init_cache_instance(cache, self.DEFAULT_CACHE_FILE, default_ttl)
@@ -198,6 +200,8 @@ class AsyncPDDiktiClient:
         raw_base_url = self.DEFAULT_BASE_URL if base_url is None else base_url
         self.base_url = _validate_http_url(raw_base_url, "base_url")
         self.timeout = _validate_timeout(timeout)
+        if sinta_base_url is not None:
+            _validate_http_url(sinta_base_url, "sinta_base_url")
 
         self.cache, self._owns_cache = _init_cache_instance(cache, self.DEFAULT_CACHE_FILE, default_ttl)
 

@@ -143,4 +143,48 @@ def test_cli_search_negative_limit(monkeypatch, tmp_path, capsys):
     assert "UI Dua" not in out
 
 
+def test_cli_akreditasi_rejects_invalid_exp_date(capsys):
+    ret = main([
+        "akreditasi",
+        "--peringkat", "Unggul",
+        "--exp", "bukan-tanggal",
+    ])
+    assert ret == 1
+    captured = capsys.readouterr()
+    assert "YYYY-MM-DD" in captured.out or "YYYY-MM-DD" in captured.err
+
+
+def test_cli_pt_sanitizes_ansi_and_json_errors_go_to_stderr(monkeypatch, tmp_path, capsys):
+    from pddikti_sdk.client import PDDiktiClient
+    from pddikti_sdk.exceptions import ResourceNotFoundError
+    from pddikti_sdk.models import PerguruanTinggi
+
+    evil_pt = PerguruanTinggi(
+        kode="001\x1b[31m",
+        nama_pt="Kampus\x1b[2J\r\nBahaya",
+        provinsi="Jawa\x1b[32mBarat",
+        kab_kota="Bandung\nKota",
+    )
+    monkeypatch.setattr(PDDiktiClient, "get_perguruan_tinggi", lambda self, id_pt, include_prodi=True, use_cache=True: evil_pt)
+    monkeypatch.setattr(PDDiktiClient, "DEFAULT_CACHE_FILE", str(tmp_path / "cli_pt.db"))
+
+    ret = main(["pt", "PT123", "--no-prodi"])
+    assert ret == 0
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    assert "Kampus Bahaya" in out
+
+    # Ketika --json aktif dan terjadi error, stdout harus kosong (error ke stderr)
+    def _raise_not_found(*args, **kwargs):
+        raise ResourceNotFoundError("Tidak ditemukan")
+
+    monkeypatch.setattr(PDDiktiClient, "get_perguruan_tinggi", _raise_not_found)
+    ret_err = main(["pt", "PT404", "--json"])
+    assert ret_err == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Tidak ditemukan" in captured.err
+
+
+
 

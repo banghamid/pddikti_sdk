@@ -5,6 +5,7 @@ evaluasi rasio dosen-mahasiswa BAN-PT, verifikasi akreditasi, dan ringkasan metr
 """
 
 import argparse
+from datetime import date
 import json
 import re
 import sys
@@ -79,7 +80,8 @@ def handle_search(args: argparse.Namespace) -> int:
         with PDDiktiClient(timeout=args.timeout) as client:
             result = client.search(keyword, use_cache=use_cache)
     except Exception as e:
-        print(f"Gagal melakukan pencarian: {e}")
+        target_stream = sys.stderr if args.json else sys.stdout
+        print(f"Gagal melakukan pencarian: {_sanitize_terminal_text(e)}", file=target_stream)
         return 1
 
     if args.json:
@@ -125,7 +127,8 @@ def handle_pt(args: argparse.Namespace) -> int:
         with PDDiktiClient(timeout=args.timeout) as client:
             pt = client.get_perguruan_tinggi(id_pt, include_prodi=not args.no_prodi, use_cache=use_cache)
     except Exception as e:
-        print(f"Gagal mengambil detail PT: {e}")
+        target_stream = sys.stderr if args.json else sys.stdout
+        print(f"Gagal mengambil detail PT: {_sanitize_terminal_text(e)}", file=target_stream)
         return 1
 
     if args.json:
@@ -135,10 +138,10 @@ def handle_pt(args: argparse.Namespace) -> int:
     print(f"\n========================================================")
     print(f"PROFIL PERGURUAN TINGGI")
     print(f"========================================================")
-    print(f"Nama Kampus     : {pt.nama}")
-    print(f"Kode / NPSN     : {pt.kode_pt}")
-    print(f"Provinsi / Kota : {pt.provinsi or '-'} / {pt.kab_kota or '-'}")
-    print(f"Kepemilikan     : {pt.status_kepemilikan}")
+    print(f"Nama Kampus     : {_sanitize_terminal_text(pt.nama)}")
+    print(f"Kode / NPSN     : {_sanitize_terminal_text(pt.kode_pt)}")
+    print(f"Provinsi / Kota : {_sanitize_terminal_text(pt.provinsi or '-')} / {_sanitize_terminal_text(pt.kab_kota or '-')}")
+    print(f"Kepemilikan     : {_sanitize_terminal_text(pt.status_kepemilikan)}")
     print(f"Total Mahasiswa : {pt.total_mahasiswa_aktif:,}")
     print(f"Total Dosen     : {pt.total_dosen_tetap:,}")
     print(f"Rasio Kampus    : 1 : {pt.rasio_agregat_kampus}")
@@ -178,7 +181,8 @@ def handle_ratio(args: argparse.Namespace) -> int:
             pt = client.get_perguruan_tinggi(id_pt, include_prodi=True, use_cache=use_cache)
             laporan = client.analyze_ratio(pt)
     except Exception as e:
-        print(f"Gagal menganalisis rasio PT: {e}")
+        target_stream = sys.stderr if args.json else sys.stdout
+        print(f"Gagal menganalisis rasio PT: {_sanitize_terminal_text(e)}", file=target_stream)
         return 1
 
     export_target = getattr(args, "export", None)
@@ -188,7 +192,7 @@ def handle_ratio(args: argparse.Namespace) -> int:
             excel_path = export_laporan_rasio_excel(laporan, export_target)
         except Exception as e:
             target_stream = sys.stderr if args.json else sys.stdout
-            print(f"\n[GAGAL] Gagal mengekspor laporan Excel: {e}", file=target_stream)
+            print(f"\n[GAGAL] Gagal mengekspor laporan Excel: {_sanitize_terminal_text(e)}", file=target_stream)
             return 1
 
     if args.json:
@@ -198,13 +202,13 @@ def handle_ratio(args: argparse.Namespace) -> int:
     print(f"\n========================================================")
     print(f"LAPORAN KEPATUHAN RASIO DOSEN-MAHASISWA (BAN-PT)")
     print(f"========================================================")
-    print(f"Kampus           : {laporan.nama_pt} ({laporan.kode_pt})")
+    print(f"Kampus           : {_sanitize_terminal_text(laporan.nama_pt)} ({_sanitize_terminal_text(laporan.kode_pt)})")
     print(f"Total Dosen      : {laporan.total_dosen:,}")
     print(f"Total Mahasiswa  : {laporan.total_mahasiswa:,}")
     print(f"Rasio Agregat PT : 1 : {laporan.rasio_agregat}")
     print("\nRingkasan Status Prodi:")
     for status, count in laporan.sebaran_status_prodi.items():
-        print(f"  - {status}: {count} prodi")
+        print(f"  - {_sanitize_terminal_text(status)}: {count} prodi")
 
     if laporan.prodi_anomali:
         print(f"\n[PERINGATAN] DITEMUKAN {len(laporan.prodi_anomali)} PRODI ANOMALI EKSTRIM:")
@@ -230,6 +234,17 @@ def handle_ratio(args: argparse.Namespace) -> int:
 
 def handle_akreditasi(args: argparse.Namespace) -> int:
     """Menangani perintah: pddikti akreditasi --peringkat <peringkat> [--lembaga <lembaga>] [--exp <YYYY-MM-DD>]"""
+    if args.exp:
+        try:
+            date.fromisoformat(args.exp.strip())
+        except ValueError:
+            target_stream = sys.stderr if args.json else sys.stdout
+            print(
+                f"Error: Format tanggal kedaluwarsa tidak valid ({_sanitize_terminal_text(args.exp)}). Gunakan format YYYY-MM-DD.",
+                file=target_stream,
+            )
+            return 1
+
     data = {
         "akreditasi": args.peringkat,
         "lembaga": args.lembaga or "BAN-PT",

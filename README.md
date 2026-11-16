@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-v2-e92063.svg)](https://docs.pydantic.dev/)
-[![Tests](https://img.shields.io/badge/tests-45%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-47%20passed-brightgreen.svg)]()
 
 **PDDikti SDK** adalah pustaka Python modern, terawat, dan dilengkapi sistem *type safety* lengkap (Pydantic V2) untuk mengakses dan menganalisis data ekosistem pendidikan tinggi Indonesia: **PDDikti Kemendikbudristek**, **Publikasi & Metrik SINTA**, **Akreditasi BAN-PT & Lembaga Akreditasi Mandiri (LAM)**, serta **Mesin Analisis Rasio Kepatuhan Dosen-Mahasiswa**.
 

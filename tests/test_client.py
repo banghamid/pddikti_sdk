@@ -71,6 +71,8 @@ def test_client_validates_url_and_timeout():
 
     with pytest.raises(ValidationError):
         PDDiktiClient(sinta_base_url="file:///tmp", cache=False)
+    with pytest.raises(ValidationError):
+        AsyncPDDiktiClient(sinta_base_url="file:///tmp", cache=False)
 
     for bad_timeout in [0, -5.0, float("nan"), float("inf")]:
         with pytest.raises(ValidationError):
